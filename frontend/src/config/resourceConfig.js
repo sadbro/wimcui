@@ -27,6 +27,11 @@ export const resourceFields = {
   EC2: [
     subnetParent,
     {
+      key: "iam_role_id",
+      label: "IAM Role",
+      type: "iam-role-select",
+    },
+    {
       key: "instance_type",
       label: "Instance Type",
       type: "select",

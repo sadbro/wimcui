@@ -1,4 +1,6 @@
 import { Handle, Position, useReactFlow } from "reactflow";
+import { useContext } from "react";
+import { RolesContext } from "../../config/rolesContext";
 import { NodeResizer } from "@reactflow/node-resizer";
 import "@reactflow/node-resizer/dist/style.css";
 
@@ -17,6 +19,9 @@ export default function DeleteNode({ id, data, selected }) {
   const { deleteElements } = useReactFlow();
   const resourceType = data?.resourceType;
   const colors = RESOURCE_COLORS[resourceType] || { border: "var(--border)" };
+  const roles = useContext(RolesContext);
+  const assignedRoleId = data?.config?.iam_role_id;
+  const assignedRole = assignedRoleId ? roles.find((r) => r.id === assignedRoleId) : null;
   const borderColor = selected ? "var(--accent)" : colors.border;
 
   // Public/private icon for Subnet; globe for IGW
@@ -58,6 +63,17 @@ export default function DeleteNode({ id, data, selected }) {
       </div>
       <Handle id="top"    type="target" position={Position.Top}    />
       <Handle id="bottom" type="source" position={Position.Bottom} />
+      {/* IAM Role stripe */}
+      {assignedRole && (
+        <div style={{
+          position: "absolute", left: 0, top: 0, bottom: 0,
+          width: 4, borderRadius: "6px 0 0 6px",
+          background: assignedRole.color,
+          zIndex: 1,
+        }}
+        title={`IAM Role: ${assignedRole.name}`}
+        />
+      )}
       {visibilityIcon && (
         <span style={{
           position: "absolute", top: 5, left: 7,

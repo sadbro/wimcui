@@ -7,6 +7,7 @@ import EdgeConfigModal from "../Modal/EdgeConfigModal";
 import StructuralEdge from "../Edges/StructuralEdge";
 import AssociationEdge from "../Edges/AssociationEdge";
 import ReviewPanel from "../Sidebar/ReviewPanel";
+import { RolesContext } from "../../config/rolesContext";
 import TrafficEdge from "../Edges/TrafficEdge";
 import { hasConfig, getRequiredParents, resourceFields, validateTrafficConnection, validateAssociationConnection } from "../../config/resourceConfig";
 import { cidrContains } from "../../config/cidrUtils";
@@ -36,7 +37,7 @@ const getId = (label, existingNodes) => {
   return `${key}_${next}`;
 };
 
-function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterControls, region = "us-east-1", onRegionChange }) {
+function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterControls, region = "us-east-1", onRegionChange, roles = [], onRolesChange }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [toast, setToast] = useState(null);
@@ -425,6 +426,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
     const state = {
       version: CANVAS_VERSION,
       exportedAt: new Date().toISOString(),
+      roles: roles || [],
       region,
       nodes: nodes.map(({ id, type, position, style, data }) => ({ id, type, position, style, data })),
       edges: edges.map(({ id, type, source, target, sourceHandle, targetHandle, markerEnd, data }) => ({
@@ -508,6 +510,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
         }
 
         if (state.region && onRegionChange) onRegionChange(state.region);
+        if (state.roles && onRolesChange) onRolesChange(state.roles);
 
         // Deprecation warning for Public nodes
         const publicNodes = state.nodes.filter((n) => n.data?.resourceType === "Public");
@@ -518,10 +521,25 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
           );
         }
 
-        const remappedNodes = state.nodes.map((n) => ({
-          ...n,
-          type: n.data?.resourceType === "Public" ? "publicNode" : "deleteNode",
-        }));
+        const validRoleIds = new Set((state.roles || []).map((r) => r.id));
+        const remappedNodes = state.nodes.map((n) => {
+          const roleId = n.data?.config?.iam_role_id;
+          const hasDanglingRole = roleId && !validRoleIds.has(roleId);
+          return {
+            ...n,
+            type: n.data?.resourceType === "Public" ? "publicNode" : "deleteNode",
+            ...(hasDanglingRole ? {
+              data: { ...n.data, config: { ...n.data.config, iam_role_id: "" } }
+            } : {}),
+          };
+        });
+
+        if (remappedNodes.some((n, i) => {
+          const roleId = state.nodes[i]?.data?.config?.iam_role_id;
+          return roleId && !validRoleIds.has(roleId);
+        })) {
+          showToast("Some nodes had references to deleted roles — cleared on import.", true);
+        }
 
         setNodes(remappedNodes);
         setEdges(state.edges);
@@ -557,6 +575,13 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
         onExport:        (...args) => onExportRef.current(...args),
         onImport:        (...args) => onImportRef.current(...args),
         onReviewCanvas:  (...args) => onReviewCanvasRef.current(...args),
+        onAssignRole:    (nodeId, roleId) => {
+          setNodes((nds) => nds.map((n) =>
+            n.id === nodeId
+              ? { ...n, data: { ...n.data, config: { ...n.data.config, iam_role_id: roleId || "" } } }
+              : n
+          ));
+        },
         loading: false,
       });
     }
@@ -569,6 +594,13 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
     }
   }, [loading]);
 
+  // Sync nodes list to parent so ResourcePanel can read EC2s
+  useEffect(() => {
+    if (onRegisterControls) {
+      onRegisterControls((prev) => ({ ...prev, nodes }));
+    }
+  }, [nodes]);
+
   return (
     <div style={{ flex: 1, height: "100%", position: "relative", display: "flex" }}>
 
@@ -577,6 +609,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
           resourceType={pendingDrop.type}
           canvasNodes={nodes}
           region={region}
+          roles={roles}
           onSave={onModalSave}
           onCancel={() => setPendingDrop(null)}
         />
@@ -589,6 +622,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
           canvasNodes={nodes}
           editingNodeId={editingNode.id}
           region={region}
+          roles={roles}
           onSave={onEditSave}
           onCancel={() => setEditingNode(null)}
         />
@@ -698,6 +732,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
           nodes={nodes}
           edges={edges}
           region={region}
+          roles={roles}
           onClose={() => setReviewOpen(false)}
         />
       )}
@@ -707,8 +742,10 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
 
 export default function InfraCanvas(props) {
   return (
-    <ReactFlowProvider>
-      <Canvas {...props} />
-    </ReactFlowProvider>
+    <RolesContext.Provider value={props.roles || []}>
+      <ReactFlowProvider>
+        <Canvas {...props} />
+      </ReactFlowProvider>
+    </RolesContext.Provider>
   );
 }

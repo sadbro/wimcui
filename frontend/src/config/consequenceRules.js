@@ -473,6 +473,55 @@ export const consequenceRules = [
         })),
   },
 
+
+  // ─── IAM ───────────────────────────────────────────────────────────────────
+
+  {
+    id: "ec2_no_iam_role",
+    category: "security",
+    check: ({ ec2WithoutRole }) =>
+      ec2WithoutRole().map((n) => ({
+        node: n,
+        message: `${n.data.label} has no IAM role — any AWS API calls from this instance will fail with AccessDenied at runtime`,
+      })),
+  },
+
+  {
+    id: "role_redundant_policies",
+    category: "smell",
+    check: ({ roles }) => {
+      const results = [];
+      const REDUNDANT_PAIRS = [
+        ["AmazonS3ReadOnlyAccess",       "AmazonS3FullAccess"],
+        ["AmazonDynamoDBReadOnlyAccess",  "AmazonDynamoDBFullAccess"],
+        ["CloudWatchAgentServerPolicy",   "CloudWatchFullAccess"],
+        ["CloudWatchLogsFullAccess",      "CloudWatchFullAccess"],
+        ["AmazonMSKReadOnlyAccess",       "AmazonMSKFullAccess"],
+      ];
+      roles.forEach((role) => {
+        REDUNDANT_PAIRS.forEach(([lesser, greater]) => {
+          if (role.policies.includes(lesser) && role.policies.includes(greater)) {
+            results.push({
+              node: null,
+              message: `Role "${role.name}" has both ${lesser} and ${greater} — ${greater} supersedes ${lesser}, remove the lesser policy`,
+            });
+          }
+        });
+      });
+      return results;
+    },
+  },
+
+  {
+    id: "role_defined_unassigned",
+    category: "smell",
+    check: ({ unassignedRoles }) =>
+      unassignedRoles.map((role) => ({
+        node: null,
+        message: `Role "${role.name}" is defined but not assigned to any node — will generate dead IAM resources in Terraform`,
+      })),
+  },
+
 ];
 
 export const CATEGORY_LABELS = {

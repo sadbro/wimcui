@@ -48,7 +48,7 @@ function Row({ cols }) {
   );
 }
 
-function SummaryTab({ ctx }) {
+function SummaryTab({ ctx, roles = [] }) {
   const { vpcs, subnets, ec2, rds, lbs, igws, nats, rts, assocEdges, trafficEdges, nodeById } = ctx;
 
   return (
@@ -112,6 +112,28 @@ function SummaryTab({ ctx }) {
             ]} />
           );
         })}
+
+      {/* IAM Roles legend */}
+      {roles.length > 0 && (
+        <>
+          <SectionHeader title="IAM Roles" />
+          {roles.map((role) => {
+            const assignedNodes = ctx.nodes.filter((n) => n.data?.config?.iam_role_id === role.id);
+            return (
+              <div key={role.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "4px 0", borderBottom: "1px solid var(--border-subtle)" }}>
+                <div style={{ width: 10, height: 10, borderRadius: 2, background: role.color, flexShrink: 0, marginTop: 3 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ ...MONO, fontSize: 12, color: "var(--text-primary)", fontWeight: 600 }}>{role.name}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                    {role.policies.length} {role.policies.length === 1 ? "policy" : "policies"}
+                    {assignedNodes.length > 0 && ` · ${assignedNodes.map((n) => n.data.label).join(", ")}`}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </>
+      )}
       </>}
 
       {(igws.length > 0 || nats.length > 0 || rts.length > 0) && <>
@@ -249,7 +271,7 @@ function ConsequencesTab({ ctx }) {
 
 function buildHclChecks(ctx) {
   const checks = [];
-  const { vpcs, subnets, ec2, rds, lbs, igws, nats, rts, assocEdges, anyRtRoutesTo, rtBySubnet, publicSubnets, hasTrafficEdge, hasAnyEdge, nodes, nodeById } = ctx;
+  const { vpcs, subnets, ec2, rds, lbs, igws, nats, rts, assocEdges, anyRtRoutesTo, rtBySubnet, publicSubnets, hasTrafficEdge, hasAnyEdge, nodes, nodeById, roles = [] } = ctx;
 
   // Hard fails — Terraform will not apply
   rts.forEach((rt) => {
@@ -338,6 +360,29 @@ function buildHclChecks(ctx) {
       checks.push({ ok: false, warn: false, message: `${n.data.label} subnets must be in at least 2 different Availability Zones` });
   });
 
+
+  // ─── IAM hard fails ────────────────────────────────────────────────────────
+  const ROLE_NAME_RE = /^[a-zA-Z0-9+=,.@_-]{1,64}$/;
+  const roleNames = new Set();
+  roles.forEach((role) => {
+    // Invalid name chars/length
+    if (!ROLE_NAME_RE.test(role.name))
+      checks.push({ ok: false, warn: false, message: `IAM role "${role.name}" has invalid characters or exceeds 64 chars — AWS will reject it at apply time` });
+
+    // Duplicate role names
+    if (roleNames.has(role.name))
+      checks.push({ ok: false, warn: false, message: `Duplicate IAM role name "${role.name}" — generates conflicting aws_iam_role resource names in Terraform` });
+    roleNames.add(role.name);
+
+    // Malformed custom ARNs
+    role.policies
+      .filter((p) => p.startsWith("arn:") && !p.startsWith("arn:aws:iam::aws:policy/"))
+      .forEach((arn) => {
+        if (!/^arn:aws:iam::\d{12}:policy\/.+/.test(arn))
+          checks.push({ ok: false, warn: false, message: `Role "${role.name}" has malformed custom ARN "${arn}" — must be arn:aws:iam::<account-id>:policy/<name>` });
+      });
+  });
+
   // Warnings — Terraform applies but may be unintentional
   lbs.forEach((n) => {
     if (!hasTrafficEdge(n.id))
@@ -391,9 +436,9 @@ function HclReadinessTab({ ctx }) {
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
-export default function ReviewPanel({ nodes, edges, onClose, region }) {
+export default function ReviewPanel({ nodes, edges, onClose, region, roles = [] }) {
   const [activeTab, setActiveTab] = useState(0);
-  const ctx = buildContext(nodes, edges);
+  const ctx = buildContext(nodes, edges, roles);
 
   const hclChecks  = buildHclChecks(ctx);
   const errors     = hclChecks.filter((c) => !c.ok && !c.warn).length;
@@ -401,7 +446,7 @@ export default function ReviewPanel({ nodes, edges, onClose, region }) {
 
   const consequences = [];
   consequenceRules.forEach((rule) => {
-    try { consequences.push(...rule.check(ctx)); } catch (_) {}
+    try { consequences.push(...rule.check(ctx)); } catch (e) { console.warn(`[consequence rule ${rule.id}] failed:`, e.message); }
   });
 
   return (
@@ -453,7 +498,7 @@ export default function ReviewPanel({ nodes, edges, onClose, region }) {
 
       {/* Body */}
       <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "0 18px 18px" }}>
-        {activeTab === 0 && <SummaryTab ctx={ctx} />}
+        {activeTab === 0 && <SummaryTab ctx={ctx} roles={roles} />}
         {activeTab === 1 && <ConsequencesTab ctx={ctx} />}
         {activeTab === 2 && <HclReadinessTab ctx={ctx} />}
       </div>

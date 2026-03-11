@@ -87,6 +87,8 @@ export default function ConfigModal({
     fields.reduce((acc, f) => {
       if (existingConfig[f.key] !== undefined) {
         acc[f.key] = existingConfig[f.key];
+      } else if (f.type === "iam-role-select") {
+        acc[f.key] = "";
       } else if (f.type === "multi-select") {
         acc[f.key] = existingConfig[f.key] !== undefined ? existingConfig[f.key] : [];
       } else if (f.type === "select") {
@@ -296,6 +298,51 @@ export default function ConfigModal({
                     <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
                       Select at least {f.minItems}
                     </span>
+                  )}
+                </div>
+              ) : f.type === "iam-role-select" ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {/* None option */}
+                  <div
+                    onClick={() => setForm({ ...form, [f.key]: "" })}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "6px 10px", borderRadius: 6, cursor: "pointer",
+                      background: !form[f.key] ? "var(--accent)22" : "var(--bg-surface)",
+                      border: `1px solid ${!form[f.key] ? "var(--accent)" : "var(--border)"}`,
+                      fontSize: 12, color: !form[f.key] ? "var(--accent)" : "var(--text-muted)",
+                    }}
+                  >
+                    None
+                  </div>
+                  {roles.map((role) => {
+                    const selected = form[f.key] === role.id;
+                    return (
+                      <div
+                        key={role.id}
+                        onClick={() => setForm({ ...form, [f.key]: selected ? "" : role.id })}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          padding: "6px 10px", borderRadius: 6, cursor: "pointer",
+                          background: selected ? "var(--accent)22" : "var(--bg-surface)",
+                          border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`,
+                          fontSize: 12,
+                        }}
+                      >
+                        <div style={{ width: 10, height: 10, borderRadius: 2, background: role.color, flexShrink: 0 }} />
+                        <span style={{ color: selected ? "var(--accent)" : "var(--text-secondary)", fontWeight: selected ? 600 : 400 }}>
+                          {role.name}
+                        </span>
+                        <span style={{ color: "var(--text-muted)", fontSize: 11, marginLeft: "auto" }}>
+                          {role.policies.length} {role.policies.length === 1 ? "policy" : "policies"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {roles.length === 0 && (
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", padding: "4px 0" }}>
+                      No roles defined — create one in the sidebar
+                    </div>
                   )}
                 </div>
               ) : f.type === "route-list" ? (

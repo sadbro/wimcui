@@ -2,7 +2,7 @@
  * Builds a derived context object from raw canvas nodes and edges.
  * This is the single source of truth passed to all consequence rules and validation checks.
  */
-export function buildContext(nodes, edges) {
+export function buildContext(nodes, edges, roles = []) {
   const byType = (type) => nodes.filter((n) => n.data?.resourceType === type);
   const nodeById = (id) => nodes.find((n) => n.id === id);
 
@@ -15,6 +15,18 @@ export function buildContext(nodes, edges) {
   const nats        = byType("NATGateway");
   const rts         = byType("RouteTable");
   const publics     = byType("Public");
+
+  // IAM helpers
+  const roleById     = (id) => roles.find((r) => r.id === id);
+  const rolePolicies = (roleId) => roleById(roleId)?.policies || [];
+  const ec2WithRole    = () => ec2.filter((n) => n.data?.config?.iam_role_id);
+  const ec2WithoutRole = () => ec2.filter((n) => {
+    const roleId = n.data?.config?.iam_role_id;
+    if (!roleId) return true;        // no role set
+    return !roleById(roleId);        // role ID set but role doesn't exist — dangling
+  });
+  const assignedRoleIds = new Set(ec2.map((n) => n.data?.config?.iam_role_id).filter(Boolean));
+  const unassignedRoles = roles.filter((r) => !assignedRoleIds.has(r.id));
 
   const structuralEdges  = edges.filter((e) => e.type === "structural");
   const assocEdges       = edges.filter((e) => e.type === "association");
@@ -88,5 +100,12 @@ export function buildContext(nodes, edges) {
     routesForRt,
     rtRoutesTo,
     anyRtRoutesTo,
+    // IAM
+    roles,
+    roleById,
+    rolePolicies,
+    ec2WithRole,
+    ec2WithoutRole,
+    unassignedRoles,
   };
 }

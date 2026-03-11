@@ -1,7 +1,6 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import InfraCanvas from "./components/Canvas/InfraCanvas";
 import ResourcePanel from "./components/Sidebar/ResourcePanel";
-import { DEFAULT_REGION } from "./config/awsRegions";
 
 // Set theme synchronously before first render
 document.documentElement.setAttribute("data-theme", "dark");
@@ -10,11 +9,14 @@ function App() {
   const [selectedNode, setSelectedNode] = useState(null);
   const [editTrigger, setEditTrigger] = useState(0);
   const [theme, setTheme] = useState("dark");
-  const [region, setRegion] = useState(DEFAULT_REGION);
+  const [roles, setRoles] = useState([]);
+  const [region, setRegion] = useState("us-east-1");
   const [canvasControls, setCanvasControls] = useState({
     onExport: null,
     onImport: null,
     onReviewCanvas: null,
+    onAssignRole: null,
+    nodes: [],
     loading: false,
   });
 
@@ -33,12 +35,16 @@ function App() {
         onEditNode={handleEditNode}
         theme={theme}
         onToggleTheme={toggleTheme}
-        region={region}
-        onRegionChange={setRegion}
         onExport={canvasControls.onExport}
         onImport={canvasControls.onImport}
         onReviewCanvas={canvasControls.onReviewCanvas}
         loading={canvasControls.loading}
+        nodes={canvasControls.nodes || []}
+        onAssignRole={canvasControls.onAssignRole}
+        region={region}
+        onRegionChange={setRegion}
+        roles={roles}
+        onRolesChange={setRoles}
       />
       <InfraCanvas
         onSelectionChange={setSelectedNode}
@@ -47,6 +53,8 @@ function App() {
         onRegisterControls={setCanvasControls}
         region={region}
         onRegionChange={setRegion}
+        roles={roles}
+        onRolesChange={setRoles}
       />
     </div>
   );

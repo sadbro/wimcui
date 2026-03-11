@@ -75,6 +75,7 @@ export default function ConfigModal({
   canvasNodes = [],
   editingNodeId = null,
   region = "us-east-1",
+  roles = [],
   onSave,
   onCancel,
 }) {
@@ -301,47 +302,29 @@ export default function ConfigModal({
                   )}
                 </div>
               ) : f.type === "iam-role-select" ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {/* None option */}
-                  <div
-                    onClick={() => setForm({ ...form, [f.key]: "" })}
+                <div>
+                  <select
+                    value={form[f.key] || ""}
+                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
                     style={{
-                      display: "flex", alignItems: "center", gap: 8,
-                      padding: "6px 10px", borderRadius: 6, cursor: "pointer",
-                      background: !form[f.key] ? "var(--accent)22" : "var(--bg-surface)",
-                      border: `1px solid ${!form[f.key] ? "var(--accent)" : "var(--border)"}`,
-                      fontSize: 12, color: !form[f.key] ? "var(--accent)" : "var(--text-muted)",
+                      width: "100%", padding: "7px 10px",
+                      background: "var(--bg-surface)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 6, fontSize: 13,
+                      color: form[f.key] ? "var(--text-primary)" : "var(--text-muted)",
+                      cursor: "pointer", outline: "none",
                     }}
                   >
-                    None
-                  </div>
-                  {roles.map((role) => {
-                    const selected = form[f.key] === role.id;
-                    return (
-                      <div
-                        key={role.id}
-                        onClick={() => setForm({ ...form, [f.key]: selected ? "" : role.id })}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 8,
-                          padding: "6px 10px", borderRadius: 6, cursor: "pointer",
-                          background: selected ? "var(--accent)22" : "var(--bg-surface)",
-                          border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`,
-                          fontSize: 12,
-                        }}
-                      >
-                        <div style={{ width: 10, height: 10, borderRadius: 2, background: role.color, flexShrink: 0 }} />
-                        <span style={{ color: selected ? "var(--accent)" : "var(--text-secondary)", fontWeight: selected ? 600 : 400 }}>
-                          {role.name}
-                        </span>
-                        <span style={{ color: "var(--text-muted)", fontSize: 11, marginLeft: "auto" }}>
-                          {role.policies.length} {role.policies.length === 1 ? "policy" : "policies"}
-                        </span>
-                      </div>
-                    );
-                  })}
+                    <option value="">None</option>
+                    {roles.map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.name} ({role.policies.length} {role.policies.length === 1 ? "policy" : "policies"})
+                      </option>
+                    ))}
+                  </select>
                   {roles.length === 0 && (
-                    <div style={{ fontSize: 11, color: "var(--text-muted)", padding: "4px 0" }}>
-                      No roles defined — create one in the sidebar
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                      No roles defined — create one in the Configure tab
                     </div>
                   )}
                 </div>

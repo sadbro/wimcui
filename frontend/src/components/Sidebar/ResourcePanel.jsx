@@ -68,11 +68,7 @@ function DraggableItem({ type, color, label, onDragStart }) {
   );
 }
 
-function ResourcesTab({ onDragStart, selectedNode, onEditNode }) {
-  const canEdit = selectedNode &&
-    selectedNode.data?.resourceType &&
-    selectedNode.data?.resourceType !== "Public";
-
+function ResourcesTab({ onDragStart }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
       <div style={{ flex: 1, overflowY: "auto" }}>
@@ -85,20 +81,6 @@ function ResourcesTab({ onDragStart, selectedNode, onEditNode }) {
           <DraggableItem key={r.type} {...r} onDragStart={onDragStart} />
         ))}
       </div>
-
-      {canEdit && (
-        <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10, marginTop: 8, flexShrink: 0 }}>
-          <div style={{ ...MONO, fontSize: 10, color: "var(--text-muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>
-            Selected
-          </div>
-          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: "var(--text-primary)", wordBreak: "break-word" }}>
-            {selectedNode.data.label}
-          </div>
-          <button onClick={onEditNode} style={solidBtnStyle}>
-            Edit Config
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -216,13 +198,30 @@ export default function ResourcePanel({
         ))}
       </div>
 
+      {/* Persistent selected node — visible across all tabs */}
+      {selectedNode && selectedNode.data?.resourceType && selectedNode.data?.resourceType !== "Public" && (
+        <div style={{
+          borderTop: "1px solid var(--border)",
+          borderBottom: "1px solid var(--border)",
+          padding: "8px 0", marginBottom: 8, flexShrink: 0,
+        }}>
+          <div style={{ ...MONO, fontSize: 10, color: "var(--text-muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>
+            Selected
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: "var(--text-primary)", wordBreak: "break-word" }}>
+            {selectedNode.data.label}
+          </div>
+          <button onClick={onEditNode} style={solidBtnStyle}>
+            Edit Config
+          </button>
+        </div>
+      )}
+
       {/* Tab content */}
       <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
         {activeTab === 0 && (
           <ResourcesTab
             onDragStart={onDragStart}
-            selectedNode={selectedNode}
-            onEditNode={onEditNode}
           />
         )}
         {activeTab === 1 && (

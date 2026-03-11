@@ -363,6 +363,18 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
     setPendingDrop(null);
   };
 
+  const onNodeDoubleClick = useCallback((event, node) => {
+    if (!node.data?.resourceType) return;
+    if (node.data.resourceType === "Public") return;
+    const freshNode = nodesRef.current.find((n) => n.id === node.id);
+    setEditingNode(freshNode || node);
+  }, []);
+
+  const onEdgeDoubleClick = useCallback((event, edge) => {
+    if (edge.type !== "traffic") return;
+    setEditingEdge(edge);
+  }, []);
+
   const onEditSave = (config) => {
     if (!editingNode) return;
     const type = editingNode.data.resourceType;
@@ -718,6 +730,8 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
         onDragOver={onDragOver}
         onSelectionChange={handleSelectionChange}
         onEdgeClick={onEdgeClick}
+        onNodeDoubleClick={onNodeDoubleClick}
+        onEdgeDoubleClick={onEdgeDoubleClick}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         deleteKeyCode={["Backspace", "Delete"]}

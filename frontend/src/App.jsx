@@ -16,6 +16,10 @@ function App() {
     onImport: null,
     onReviewCanvas: null,
     onAssignRole: null,
+    undo: null,
+    redo: null,
+    canUndo: false,
+    canRedo: false,
     nodes: [],
     loading: false,
   });
@@ -41,6 +45,10 @@ function App() {
         loading={canvasControls.loading}
         nodes={canvasControls.nodes || []}
         onAssignRole={canvasControls.onAssignRole}
+        onUndo={canvasControls.undo}
+        onRedo={canvasControls.redo}
+        canUndo={!!canvasControls.canUndo}
+        canRedo={!!canvasControls.canRedo}
         region={region}
         onRegionChange={setRegion}
         roles={roles}

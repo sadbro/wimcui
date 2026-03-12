@@ -1,4 +1,4 @@
-import { Handle, Position, useReactFlow } from "reactflow";
+import { Handle, Position } from "reactflow";
 import { useContext } from "react";
 import { RolesContext } from "../../config/rolesContext";
 import { NodeResizer } from "@reactflow/node-resizer";
@@ -15,8 +15,7 @@ const RESOURCE_COLORS = {
   RouteTable:   { border: "#722ed1" },
 };
 
-export default function DeleteNode({ id, data, selected }) {
-  const { deleteElements } = useReactFlow();
+export default function ResourceNode({ id, data, selected }) {
   const resourceType = data?.resourceType;
   const colors = RESOURCE_COLORS[resourceType] || { border: "var(--border)" };
   const roles = useContext(RolesContext);
@@ -48,7 +47,7 @@ export default function DeleteNode({ id, data, selected }) {
     }}>
       <NodeResizer isVisible={selected} minWidth={100} minHeight={40} color={colors.border} />
       <div
-        onClick={() => deleteElements({ nodes: [{ id }] })}
+        onClick={() => data.onDelete && data.onDelete(id)}
         style={{
           position: "absolute", top: -8, right: -8,
           width: 18, height: 18,

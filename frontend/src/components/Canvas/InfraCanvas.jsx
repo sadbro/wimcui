@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import React, { useCallback, useState, useEffect, useRef } from "react";
-import DeleteNode from "./DeleteNode";
+import ResourceNode from "./ResourceNode";
 import PublicNode from "./PublicNode";
 import ConfigModal from "../Modal/ConfigModal";
 import EdgeConfigModal from "../Modal/EdgeConfigModal";
@@ -17,13 +17,14 @@ import ReactFlow, {
   Controls,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   ReactFlowProvider,
   MarkerType,
 } from "reactflow";
 
 import "reactflow/dist/style.css";
 
-const nodeTypes = { deleteNode: DeleteNode, publicNode: PublicNode };
+const nodeTypes = { resourceNode: ResourceNode, publicNode: PublicNode };
 const edgeTypes = { structural: StructuralEdge, traffic: TrafficEdge, association: AssociationEdge };
 
 const getId = (label, existingNodes) => {
@@ -50,12 +51,49 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
   const [editingEdge, setEditingEdge] = useState(null);   // existing edge being edited
   const [reviewOpen, setReviewOpen] = useState(false);
 
+  // Undo / Redo history
+  const [past,   setPast]   = useState([]);
+  const [future, setFuture] = useState([]);
+  const isDragging = useRef(false);
+
   // Always-fresh ref to nodes — solves stale closure in callbacks
   const nodesRef = useRef(nodes);
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
 
+  const edgesRef = useRef(edges);
+  useEffect(() => { edgesRef.current = edges; }, [edges]);
+
   // Always-fresh ref to showToast
   const showToastRef = useRef(null);
+
+  const snapshot = useCallback(() => {
+    setPast((p) => [...p.slice(-49), { nodes: nodesRef.current, edges: edgesRef.current, roles }]);
+    setFuture([]);
+  }, [roles]);
+
+  const undo = useCallback(() => {
+    setPast((p) => {
+      if (p.length === 0) return p;
+      const prev = p[p.length - 1];
+      setFuture((f) => [{ nodes: nodesRef.current, edges: edgesRef.current, roles }, ...f.slice(0, 49)]);
+      setNodes(prev.nodes);
+      setEdges(prev.edges);
+      if (prev.roles && onRolesChange) onRolesChange(prev.roles);
+      return p.slice(0, -1);
+    });
+  }, [roles, onRolesChange, setNodes, setEdges]);
+
+  const redo = useCallback(() => {
+    setFuture((f) => {
+      if (f.length === 0) return f;
+      const next = f[0];
+      setPast((p) => [...p.slice(-49), { nodes: nodesRef.current, edges: edgesRef.current, roles }]);
+      setNodes(next.nodes);
+      setEdges(next.edges);
+      if (next.roles && onRolesChange) onRolesChange(next.roles);
+      return f.slice(1);
+    });
+  }, [roles, onRolesChange, setNodes, setEdges]);
 
   useEffect(() => {
     if (editTrigger > 0 && selectedNode) {
@@ -244,6 +282,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
 
   // Intercept node changes — block removal if node has children
   const handleNodesChange = useCallback((changes) => {
+    const removals = changes.filter((c) => c.type === "remove");
     const filteredChanges = changes.filter((change) => {
       if (change.type !== "remove") return true;
 
@@ -253,11 +292,16 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
 
       if (hasChildren) {
         showToastRef.current("Cannot delete — remove all child nodes first!", true);
-        return false; // block this removal
+        return false;
       }
 
       return true;
     });
+
+    // Snapshot before keyboard/built-in deletions (✕ button snapshots itself)
+    if (removals.length > 0 && filteredChanges.some((c) => c.type === "remove")) {
+      snapshot();
+    }
 
     onNodesChange(filteredChanges);
   }, [onNodesChange]);
@@ -363,6 +407,21 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
     setPendingDrop(null);
   };
 
+  const { deleteElements } = useReactFlow();
+
+  const onDeleteNode = useCallback((nodeId) => {
+    // Check for children before deleting
+    const hasChildren = nodesRef.current.some((n) =>
+      Object.values(n.data?.config || {}).includes(nodeId)
+    );
+    if (hasChildren) {
+      showToastRef.current("Cannot delete — remove all child nodes first!", true);
+      return;
+    }
+    snapshot();
+    deleteElements({ nodes: [{ id: nodeId }] });
+  }, [snapshot, deleteElements]);
+
   const onNodeDoubleClick = useCallback((event, node) => {
     if (!node.data?.resourceType) return;
     if (node.data.resourceType === "Public") return;
@@ -375,8 +434,18 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
     setEditingEdge(edge);
   }, []);
 
+  const onNodeDragStart = useCallback(() => {
+    isDragging.current = true;
+  }, []);
+
+  const onNodeDragStop = useCallback(() => {
+    isDragging.current = false;
+    snapshot();
+  }, [snapshot]);
+
   const onEditSave = (config) => {
     if (!editingNode) return;
+    snapshot();
     const type = editingNode.data.resourceType;
 
     // VPC CIDR change — validate all child subnets against the new CIDR
@@ -533,16 +602,18 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
           );
         }
 
+        snapshot();
         const validRoleIds = new Set((state.roles || []).map((r) => r.id));
         const remappedNodes = state.nodes.map((n) => {
           const roleId = n.data?.config?.iam_role_id;
           const hasDanglingRole = roleId && !validRoleIds.has(roleId);
           return {
             ...n,
-            type: n.data?.resourceType === "Public" ? "publicNode" : "deleteNode",
-            ...(hasDanglingRole ? {
-              data: { ...n.data, config: { ...n.data.config, iam_role_id: "" } }
-            } : {}),
+            type: n.data?.resourceType === "Public" ? "publicNode" : "resourceNode",
+            data: {
+            ...(hasDanglingRole ? { ...n.data, config: { ...n.data.config, iam_role_id: "" } } : n.data),
+            onDelete: onDeleteNode,
+          },
           };
         });
 
@@ -587,7 +658,10 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
         onExport:        (...args) => onExportRef.current(...args),
         onImport:        (...args) => onImportRef.current(...args),
         onReviewCanvas:  (...args) => onReviewCanvasRef.current(...args),
+        undo,
+        redo,
         onAssignRole:    (nodeId, roleId) => {
+          snapshot();
           setNodes((nds) => nds.map((n) =>
             n.id === nodeId
               ? { ...n, data: { ...n.data, config: { ...n.data.config, iam_role_id: roleId || "" } } }
@@ -612,6 +686,27 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
       onRegisterControls((prev) => ({ ...prev, nodes }));
     }
   }, [nodes]);
+
+  // Sync undo/redo availability to parent so buttons update reactively
+  useEffect(() => {
+    if (onRegisterControls) {
+      onRegisterControls((prev) => ({ ...prev, canUndo: past.length > 0, canRedo: future.length > 0 }));
+    }
+  }, [past.length, future.length]);
+
+  // Keyboard shortcuts — undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (isDragging.current) return;
+      const isMac = navigator.platform.toUpperCase().includes("MAC");
+      const ctrl = isMac ? e.metaKey : e.ctrlKey;
+      if (!ctrl) return;
+      if (e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      if (e.key === "y" || (e.key === "z" && e.shiftKey)) { e.preventDefault(); redo(); }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [undo, redo]);
 
   return (
     <div style={{ flex: 1, height: "100%", position: "relative", display: "flex" }}>
@@ -732,6 +827,8 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
         onEdgeClick={onEdgeClick}
         onNodeDoubleClick={onNodeDoubleClick}
         onEdgeDoubleClick={onEdgeDoubleClick}
+        onNodeDragStart={onNodeDragStart}
+        onNodeDragStop={onNodeDragStop}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         deleteKeyCode={["Backspace", "Delete"]}

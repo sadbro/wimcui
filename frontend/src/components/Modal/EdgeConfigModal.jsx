@@ -120,17 +120,22 @@ export default function EdgeConfigModal({
       zIndex: 1000,
     }}>
       <div style={{
-        background: "var(--bg-elevated)", borderRadius: 10, padding: 24,
-        minWidth: 400, maxWidth: 460,
+        background: "var(--bg-elevated)", borderRadius: 10,
+        minWidth: 400, maxWidth: 460, width: "100%",
+        maxHeight: "65vh", minHeight: 200,
         boxShadow: "0 8px 40px rgba(0,0,0,0.6)", border: "1px solid var(--border)",
+        display: "flex", flexDirection: "column",
       }}>
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px 12px", flexShrink: 0 }}>
           <h3 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>
             {isEditing ? "Edit Connection" : "Configure Connection"}
           </h3>
           <span onClick={onCancel} style={{ cursor: "pointer", color: "var(--text-muted)", fontSize: 18 }}>✕</span>
         </div>
+
+        {/* Scrollable body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 24px" }}>
 
         {/* Direction + ID */}
         <div style={{
@@ -176,8 +181,10 @@ export default function EdgeConfigModal({
           onDelete={(i) => setEgress((r) => r.filter((_, idx) => idx !== i))}
         />
 
-        {/* Actions */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+        </div>{/* end scrollable body */}
+
+        {/* Actions — pinned footer */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 24px", flexShrink: 0, borderTop: "1px solid var(--border)" }}>
           <div>
             {isEditing && onDelete && (
               <button onClick={onDelete} style={deleteBtnStyle}>Delete Connection</button>

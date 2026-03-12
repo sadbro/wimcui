@@ -300,7 +300,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
 
     // Snapshot before keyboard/built-in deletions (✕ button snapshots itself)
     if (removals.length > 0 && filteredChanges.some((c) => c.type === "remove")) {
-      snapshot();
+      snapshotRef.current();
     }
 
     onNodesChange(filteredChanges);
@@ -338,9 +338,9 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
     setNodes((nds) =>
       nds.concat({
         id: newId,
-        type: "deleteNode",
+        type: "resourceNode",
         position,
-        data: { label: displayLabel, resourceType: type, config },
+        data: { label: displayLabel, resourceType: type, config, onDelete: onDeleteNode },
       })
     );
     return newId;
@@ -418,9 +418,9 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
       showToastRef.current("Cannot delete — remove all child nodes first!", true);
       return;
     }
-    snapshot();
+    snapshotRef.current();
     deleteElements({ nodes: [{ id: nodeId }] });
-  }, [snapshot, deleteElements]);
+  }, [deleteElements]);
 
   const onNodeDoubleClick = useCallback((event, node) => {
     if (!node.data?.resourceType) return;
@@ -440,12 +440,12 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
 
   const onNodeDragStop = useCallback(() => {
     isDragging.current = false;
-    snapshot();
-  }, [snapshot]);
+    snapshotRef.current();
+  }, []);
 
   const onEditSave = (config) => {
     if (!editingNode) return;
-    snapshot();
+    snapshotRef.current();
     const type = editingNode.data.resourceType;
 
     // VPC CIDR change — validate all child subnets against the new CIDR
@@ -482,6 +482,39 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
     setNodes((nds) =>
       nds.map((n) => (n.id === editingNode.id ? updatedNode : n))
     );
+
+    // Reconcile structural edges when a parent-select field changes
+    const parentFields = (resourceFields[type] || []).filter((f) => f.type === "parent-select");
+    if (parentFields.length > 0) {
+      setEdges((eds) => {
+        let updated = eds;
+        parentFields.forEach((f) => {
+          const oldParentId = editingNode.data.config?.[f.key];
+          const newParentId = config[f.key];
+          if (oldParentId === newParentId) return;
+
+          // Remove old structural edge from old parent to this node
+          updated = updated.filter(
+            (e) => !(e.type === "structural" && e.source === oldParentId && e.target === editingNode.id)
+          );
+
+          // Add new structural edge from new parent to this node
+          if (newParentId) {
+            updated = updated.concat({
+              id: `e_${newParentId}_${editingNode.id}`,
+              source: newParentId,
+              target: editingNode.id,
+              sourceHandle: "bottom",
+              targetHandle: "top",
+              type: "structural",
+              markerEnd: { type: MarkerType.ArrowClosed, color: "#aaa" },
+            });
+          }
+        });
+        return updated;
+      });
+    }
+
     onSelectionChange(updatedNode);
     setEditingNode(null);
     showToast("Node updated.");
@@ -602,7 +635,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
           );
         }
 
-        snapshot();
+        snapshotRef.current();
         const validRoleIds = new Set((state.roles || []).map((r) => r.id));
         const remappedNodes = state.nodes.map((n) => {
           const roleId = n.data?.config?.iam_role_id;
@@ -647,9 +680,15 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
   const onExportRef = useRef(onExport);
   const onImportRef = useRef(onImport);
   const onReviewCanvasRef = useRef(onReviewCanvas);
+  const undoRef = useRef(undo);
+  const redoRef = useRef(redo);
+  const snapshotRef = useRef(snapshot);
   useEffect(() => { onExportRef.current = onExport; }, [onExport]);
   useEffect(() => { onImportRef.current = onImport; }, [onImport]);
   useEffect(() => { onReviewCanvasRef.current = onReviewCanvas; }, [onReviewCanvas]);
+  useEffect(() => { undoRef.current = undo; }, [undo]);
+  useEffect(() => { redoRef.current = redo; }, [redo]);
+  useEffect(() => { snapshotRef.current = snapshot; }, [snapshot]);
 
   // Register stable wrappers once on mount
   useEffect(() => {
@@ -658,10 +697,10 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
         onExport:        (...args) => onExportRef.current(...args),
         onImport:        (...args) => onImportRef.current(...args),
         onReviewCanvas:  (...args) => onReviewCanvasRef.current(...args),
-        undo,
-        redo,
+        undo:            (...args) => undoRef.current(...args),
+        redo:            (...args) => redoRef.current(...args),
         onAssignRole:    (nodeId, roleId) => {
-          snapshot();
+          snapshotRef.current();
           setNodes((nds) => nds.map((n) =>
             n.id === nodeId
               ? { ...n, data: { ...n.data, config: { ...n.data.config, iam_role_id: roleId || "" } } }
@@ -701,8 +740,8 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
       const isMac = navigator.platform.toUpperCase().includes("MAC");
       const ctrl = isMac ? e.metaKey : e.ctrlKey;
       if (!ctrl) return;
-      if (e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
-      if (e.key === "y" || (e.key === "z" && e.shiftKey)) { e.preventDefault(); redo(); }
+      if (e.key === "z" && !e.shiftKey) { e.preventDefault(); undoRef.current(); }
+      if (e.key === "y" || (e.key === "z" && e.shiftKey)) { e.preventDefault(); redoRef.current(); }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);

@@ -168,16 +168,22 @@ export default function ConfigModal({
       zIndex: 1000,
     }}>
       <div style={{
-        background: "var(--bg-elevated)", borderRadius: 10, padding: 24,
-        minWidth: 360, boxShadow: "0 8px 40px rgba(0,0,0,0.6)", border: "1px solid var(--border)",
+        background: "var(--bg-elevated)", borderRadius: 10,
+        minWidth: 360, maxWidth: 480, width: "100%",
+        maxHeight: "65vh", minHeight: 200,
+        boxShadow: "0 8px 40px rgba(0,0,0,0.6)", border: "1px solid var(--border)",
+        display: "flex", flexDirection: "column",
       }}>
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px 12px", flexShrink: 0 }}>
           <h3 style={{ margin: 0, fontSize: 16, color: "var(--text-primary)" }}>
             {isEditing ? `Edit ${resourceType}` : `Configure ${resourceType}`}
           </h3>
           <span onClick={onCancel} style={{ cursor: "pointer", color: "var(--text-muted)", fontSize: 18 }}>✕</span>
         </div>
+
+        {/* Scrollable body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 24px" }}>
 
         {/* ID chip — only shown when editing */}
         {isEditing && (
@@ -351,8 +357,14 @@ export default function ConfigModal({
           );
         })}
 
-        {/* Actions */}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+        </div>{/* end scrollable body */}
+
+        {/* Actions — pinned footer */}
+        <div style={{
+          display: "flex", justifyContent: "flex-end", gap: 8,
+          padding: "12px 24px", flexShrink: 0,
+          borderTop: "1px solid var(--border)",
+        }}>
           <button onClick={onCancel} style={cancelBtnStyle}>Cancel</button>
           <button onClick={handleSave} style={saveBtnStyle}>
             {isEditing ? "Save Changes" : "Place Node"}

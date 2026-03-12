@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import InfraCanvas from "./components/Canvas/InfraCanvas";
 import ResourcePanel from "./components/Sidebar/ResourcePanel";
 
@@ -24,6 +24,47 @@ function App() {
     loading: false,
   });
 
+  // Panel resize state — persisted to localStorage
+  const [leftWidth,  setLeftWidth]  = useState(() => parseInt(localStorage.getItem("wimcui_left_width")  || "210", 10));
+  const [rightWidth, setRightWidth] = useState(() => parseInt(localStorage.getItem("wimcui_right_width") || "440", 10));
+
+  useEffect(() => { localStorage.setItem("wimcui_left_width",  leftWidth);  }, [leftWidth]);
+  useEffect(() => { localStorage.setItem("wimcui_right_width", rightWidth); }, [rightWidth]);
+
+  const startDragLeft = useCallback((e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = leftWidth;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    const onMove = (e) => setLeftWidth(Math.min(320, Math.max(180, startW + (e.clientX - startX))));
+    const onUp   = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup",   onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup",   onUp);
+  }, [leftWidth]);
+
+  const startDragRight = useCallback((e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = rightWidth;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    const onMove = (e) => setRightWidth(Math.min(640, Math.max(360, startW - (e.clientX - startX))));
+    const onUp   = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup",   onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup",   onUp);
+  }, [rightWidth]);
+
   const handleEditNode = () => setEditTrigger((n) => n + 1);
 
   const toggleTheme = () => {
@@ -33,8 +74,10 @@ function App() {
   };
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: "var(--bg-base)" }}>
+    <div style={{ display: "flex", height: "100vh", background: "var(--bg-base)", overflow: "hidden" }}>
       <ResourcePanel
+        width={leftWidth}
+        onStartDrag={startDragLeft}
         selectedNode={selectedNode}
         onEditNode={handleEditNode}
         theme={theme}
@@ -55,6 +98,8 @@ function App() {
         onRolesChange={setRoles}
       />
       <InfraCanvas
+        reviewPanelWidth={rightWidth}
+        onReviewPanelDrag={startDragRight}
         onSelectionChange={setSelectedNode}
         editTrigger={editTrigger}
         selectedNode={selectedNode}

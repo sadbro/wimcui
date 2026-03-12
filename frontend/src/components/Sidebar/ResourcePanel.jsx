@@ -99,10 +99,12 @@ function ConfigureTab({ roles, onRolesChange, nodes, onAssignRole }) {
 }
 
 export default function ResourcePanel({
+  width = 210, onStartDrag,
   selectedNode, onEditNode,
   theme, onToggleTheme,
   region, onRegionChange,
   onExport, onImport, onReviewCanvas, loading,
+  onUndo, onRedo, canUndo, canRedo,
   roles, onRolesChange,
   nodes, onAssignRole,
 }) {
@@ -116,19 +118,33 @@ export default function ResourcePanel({
 
   return (
     <aside style={{
-      width: 210, padding: "12px 10px",
+      flexBasis: width, flexShrink: 0, flexGrow: 0,
+      minWidth: 180, maxWidth: 320,
+      padding: "12px 10px",
       background: "var(--bg-surface)",
       borderRight: "1px solid var(--border)",
       display: "flex", flexDirection: "column",
       height: "100vh", boxSizing: "border-box",
+      position: "relative",
     }}>
+      {/* Drag handle — right edge */}
+      <div
+        onMouseDown={onStartDrag}
+        style={{
+          position: "absolute", top: 0, right: -3,
+          width: 6, height: "100%",
+          cursor: "col-resize", zIndex: 10,
+        }}
+      />
 
       {/* Persistent header */}
       <div style={{ flexShrink: 0, marginBottom: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <span style={{ ...MONO, fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", letterSpacing: 1, textTransform: "uppercase" }}>
-            Infra Canvas
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+            <span style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", letterSpacing: 0.5, fontFamily: "system-ui, -apple-system, sans-serif" }}>
+              WIMAWS
+            </span>
+          </div>
           <button
             onClick={onToggleTheme}
             title={theme === "dark" ? "Switch to light" : "Switch to dark"}
@@ -165,6 +181,24 @@ export default function ResourcePanel({
           </button>
           <button onClick={onExport} style={{ ...ghostBtnStyle, flex: 1 }}>
             Export
+          </button>
+        </div>
+        <div style={{ display: "flex", gap: 5, marginBottom: 5 }}>
+          <button
+            onClick={onUndo}
+            disabled={!canUndo}
+            title="Undo (Ctrl+Z)"
+            style={{ ...ghostBtnStyle, flex: 1, opacity: canUndo ? 1 : 0.35, cursor: canUndo ? "pointer" : "default" }}
+          >
+            ↩ Undo
+          </button>
+          <button
+            onClick={onRedo}
+            disabled={!canRedo}
+            title="Redo (Ctrl+Y)"
+            style={{ ...ghostBtnStyle, flex: 1, opacity: canRedo ? 1 : 0.35, cursor: canRedo ? "pointer" : "default" }}
+          >
+            ↪ Redo
           </button>
         </div>
         <button onClick={onReviewCanvas} style={solidBtnStyle}>

@@ -38,7 +38,7 @@ const getId = (label, existingNodes) => {
   return `${key}_${next}`;
 };
 
-function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterControls, region = "us-east-1", onRegionChange, roles = [], onRolesChange }) {
+function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterControls, region = "us-east-1", onRegionChange, roles = [], onRolesChange, reviewPanelWidth = 440, onReviewPanelDrag }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [toast, setToast] = useState(null);
@@ -748,7 +748,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
   }, [undo, redo]);
 
   return (
-    <div style={{ flex: 1, height: "100%", position: "relative", display: "flex" }}>
+    <div style={{ flex: 1, minWidth: 0, height: "100%", position: "relative", display: "flex" }}>
 
       {pendingDrop && (
         <ConfigModal
@@ -883,6 +883,8 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
           edges={edges}
           region={region}
           roles={roles}
+          width={reviewPanelWidth}
+          onStartDrag={onReviewPanelDrag}
           onClose={() => setReviewOpen(false)}
         />
       )}

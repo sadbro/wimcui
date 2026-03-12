@@ -48,6 +48,33 @@ function Row({ cols }) {
   );
 }
 
+function TableHeader({ cols }) {
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: cols.map((c) => c.width || "1fr").join(" "),
+      gap: "0 12px",
+      padding: "3px 0 4px",
+      borderBottom: "1px solid var(--border)",
+      marginBottom: 1,
+    }}>
+      {cols.map((c, i) => (
+        <span key={i} style={{
+          ...MONO, fontSize: 10,
+          color: "var(--text-muted)",
+          textTransform: "uppercase",
+          letterSpacing: 0.8,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}>
+          {c.text}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function SummaryTab({ ctx, roles = [] }) {
   const { vpcs, subnets, ec2, rds, lbs, igws, nats, rts, assocEdges, trafficEdges, nodeById } = ctx;
 
@@ -55,6 +82,7 @@ function SummaryTab({ ctx, roles = [] }) {
     <div>
       {vpcs.length > 0 && <>
         <SectionHeader title="VPCs" />
+        <TableHeader cols={[{ text: "Name", width: "180px" }, { text: "CIDR", width: "auto" }]} />
         {vpcs.map((n) => (
           <Row key={n.id} cols={[
             { text: n.data.label,        width: "180px" },
@@ -65,6 +93,13 @@ function SummaryTab({ ctx, roles = [] }) {
 
       {subnets.length > 0 && <>
         <SectionHeader title="Subnets" />
+        <TableHeader cols={[
+          { text: "Name",    width: "130px" },
+          { text: "CIDR",    width: "105px" },
+          { text: "Type",    width: "55px"  },
+          { text: "AZ",      width: "90px"  },
+          { text: "VPC",     width: "auto"  },
+        ]} />
         {subnets.map((n) => {
           const vpc = nodeById(n.data.config?.vpcId);
           return (
@@ -72,15 +107,20 @@ function SummaryTab({ ctx, roles = [] }) {
               { text: n.data.label,                    width: "130px" },
               { text: n.data.config?.cidr,             width: "105px", dim: true },
               { text: n.data.config?.visibility,       width: "55px",  dim: true },
-              { text: n.data.config?.availability_zone, width: "100px", dim: true },
+              { text: n.data.config?.availability_zone, width: "90px",  dim: true },
               { text: vpc?.data?.label,                width: "auto",  dim: true },
             ]} />
           );
         })}
       </>}
 
-      {(ec2.length > 0 || rds.length > 0 || lbs.length > 0) && <>
-        <SectionHeader title="Compute" />
+      {ec2.length > 0 && <>
+        <SectionHeader title="EC2 Instances" />
+        <TableHeader cols={[
+          { text: "Name",     width: "140px" },
+          { text: "Instance", width: "90px"  },
+          { text: "Subnet",   width: "auto"  },
+        ]} />
         {ec2.map((n) => {
           const subnet = nodeById(n.data.config?.subnetId);
           return (
@@ -91,6 +131,15 @@ function SummaryTab({ ctx, roles = [] }) {
             ]} />
           );
         })}
+      </>}
+
+      {rds.length > 0 && <>
+        <SectionHeader title="Databases" />
+        <TableHeader cols={[
+          { text: "Name",   width: "140px" },
+          { text: "Engine", width: "90px"  },
+          { text: "Subnet", width: "auto"  },
+        ]} />
         {rds.map((n) => {
           const subnet = nodeById(n.data.config?.subnetId);
           return (
@@ -101,6 +150,16 @@ function SummaryTab({ ctx, roles = [] }) {
             ]} />
           );
         })}
+      </>}
+
+      {lbs.length > 0 && <>
+        <SectionHeader title="Load Balancers" />
+        <TableHeader cols={[
+          { text: "Name",    width: "140px" },
+          { text: "Type",    width: "90px"  },
+          { text: "Scheme",  width: "110px" },
+          { text: "Subnets", width: "auto"  },
+        ]} />
         {lbs.map((n) => {
           const subnetIds = n.data?.config?.subnets || [];
           return (
@@ -136,28 +195,49 @@ function SummaryTab({ ctx, roles = [] }) {
       )}
       </>}
 
-      {(igws.length > 0 || nats.length > 0 || rts.length > 0) && <>
-        <SectionHeader title="Networking" />
+      {igws.length > 0 && <>
+        <SectionHeader title="Internet Gateways" />
+        <TableHeader cols={[
+          { text: "Name", width: "140px" },
+          { text: "VPC",  width: "auto"  },
+        ]} />
         {igws.map((n) => {
           const vpc = nodeById(n.data.config?.vpcId);
           return (
             <Row key={n.id} cols={[
               { text: n.data.label,     width: "140px" },
-              { text: "igw",            width: "50px",  dim: true },
               { text: vpc?.data?.label, width: "auto",  dim: true },
             ]} />
           );
         })}
+      </>}
+
+      {nats.length > 0 && <>
+        <SectionHeader title="NAT Gateways" />
+        <TableHeader cols={[
+          { text: "Name",         width: "140px" },
+          { text: "Connectivity", width: "90px"  },
+          { text: "Subnet",       width: "auto"  },
+        ]} />
         {nats.map((n) => {
           const subnet = nodeById(n.data.config?.subnetId);
           return (
             <Row key={n.id} cols={[
               { text: n.data.label,                     width: "140px" },
-              { text: n.data.config?.connectivity_type, width: "60px",  dim: true },
+              { text: n.data.config?.connectivity_type, width: "90px",  dim: true },
               { text: subnet?.data?.label,              width: "auto",  dim: true },
             ]} />
           );
         })}
+      </>}
+
+      {rts.length > 0 && <>
+        <SectionHeader title="Route Tables" />
+        <TableHeader cols={[
+          { text: "Name",   width: "140px" },
+          { text: "Routes", width: "70px"  },
+          { text: "VPC",    width: "auto"  },
+        ]} />
         {rts.map((n) => {
           const routes = n.data?.config?.routes || [];
           const vpc = nodeById(n.data.config?.vpcId);
@@ -173,6 +253,11 @@ function SummaryTab({ ctx, roles = [] }) {
 
       {assocEdges.length > 0 && <>
         <SectionHeader title="Associations" />
+        <TableHeader cols={[
+          { text: "Source", width: "160px" },
+          { text: "",       width: "24px"  },
+          { text: "Target", width: "auto"  },
+        ]} />
         {assocEdges.map((e) => {
           const src = nodeById(e.source);
           const tgt = nodeById(e.target);
@@ -188,6 +273,12 @@ function SummaryTab({ ctx, roles = [] }) {
 
       {trafficEdges.length > 0 && <>
         <SectionHeader title="Traffic" />
+        <TableHeader cols={[
+          { text: "Source", width: "120px" },
+          { text: "",       width: "30px"  },
+          { text: "Target", width: "110px" },
+          { text: "Rules",  width: "auto"  },
+        ]} />
         {trafficEdges.map((e) => {
           const src = nodeById(e.source);
           const tgt = nodeById(e.target);
@@ -436,7 +527,7 @@ function HclReadinessTab({ ctx }) {
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
-export default function ReviewPanel({ nodes, edges, onClose, region, roles = [] }) {
+export default function ReviewPanel({ nodes, edges, onClose, region, roles = [], width = 440, onStartDrag }) {
   const [activeTab, setActiveTab] = useState(0);
   const ctx = buildContext(nodes, edges, roles);
 
@@ -452,12 +543,22 @@ export default function ReviewPanel({ nodes, edges, onClose, region, roles = [] 
   return (
     <div style={{
       position: "absolute", top: 0, right: 0,
-      width: 440, height: "100%",
+      width, minWidth: 360, maxWidth: 640,
+      height: "100%",
       background: "var(--bg-surface)",
       borderLeft: "1px solid var(--border)",
       zIndex: 20, display: "flex", flexDirection: "column",
       boxShadow: "-4px 0 24px rgba(0,0,0,0.3)",
     }}>
+      {/* Drag handle — left edge */}
+      <div
+        onMouseDown={onStartDrag}
+        style={{
+          position: "absolute", top: 0, left: -3,
+          width: 6, height: "100%",
+          cursor: "col-resize", zIndex: 10,
+        }}
+      />
       {/* Header */}
       <div style={{
         padding: "14px 18px",

@@ -9,7 +9,9 @@ import AssociationEdge from "../Edges/AssociationEdge";
 import ReviewPanel from "../Sidebar/ReviewPanel";
 import { RolesContext } from "../../config/rolesContext";
 import TrafficEdge from "../Edges/TrafficEdge";
-import { hasConfig, getRequiredParents, resourceFields, validateTrafficConnection, validateAssociationConnection } from "../../config/resourceConfig";
+import { hasConfig, getRequiredParents, resourceFields } from "../../config/resourceConfig";
+import { validateTrafficConnection } from "../../config/trafficRules";
+import { validateAssociationConnection } from "../../config/associationRules";
 import { cidrContains } from "../../config/cidrUtils";
 
 import ReactFlow, {

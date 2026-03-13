@@ -474,6 +474,84 @@ export const consequenceRules = [
   },
 
 
+  // ─── SECURITY GROUPS ──────────────────────────────────────────────────────
+
+  {
+    id: "sg_wide_open_ssh",
+    category: "security",
+    check: ({ trafficEdges, nodeById }) => {
+      const results = [];
+      trafficEdges.forEach((e) => {
+        const target = nodeById(e.target);
+        if (!target) return;
+        const ingress = e.data?.ingress || [];
+        const hasOpenSSH = ingress.some(
+          (r) => (r.port === "22" || r.port === "3389") && r.protocol !== "ANY"
+        );
+        if (hasOpenSSH) {
+          results.push({
+            node: target,
+            message: `${target.data.label} has SSH/RDP (port ${ingress.find(r => r.port === "22" || r.port === "3389")?.port}) open — ensure source is restricted to a known CIDR, not 0.0.0.0/0`,
+          });
+        }
+      });
+      return results;
+    },
+  },
+
+  {
+    id: "sg_asymmetric_rules",
+    category: "smell",
+    check: ({ trafficEdges, nodeById }) => {
+      const results = [];
+      trafficEdges.forEach((e) => {
+        const ingress = e.data?.ingress || [];
+        const egress  = e.data?.egress  || [];
+        const manualEgress = egress.filter((r) => !r._mirrored);
+        const src = nodeById(e.source);
+        const tgt = nodeById(e.target);
+        if (!src || !tgt) return;
+        if (ingress.length > 0 && egress.length === 0) {
+          results.push({
+            node: tgt,
+            message: `${src.data.label} → ${tgt.data.label} has inbound rules but no outbound rules — ${src.data.label}'s SG will block return traffic`,
+          });
+        }
+        if (egress.length > 0 && ingress.length === 0) {
+          results.push({
+            node: src,
+            message: `${src.data.label} → ${tgt.data.label} has outbound rules but no inbound rules — ${tgt.data.label}'s SG will block incoming traffic`,
+          });
+        }
+      });
+      return results;
+    },
+  },
+
+  {
+    id: "sg_nlb_rules_ignored",
+    category: "smell",
+    check: ({ lbs, trafficEdges, nodeById }) => {
+      const results = [];
+      lbs
+        .filter((lb) => lb.data?.config?.load_balancer_type === "network")
+        .forEach((lb) => {
+          const hasRules = trafficEdges.some((e) => {
+            const hasIngress = (e.data?.ingress || []).length > 0;
+            const hasEgress  = (e.data?.egress  || []).length > 0;
+            return (e.source === lb.id || e.target === lb.id) && (hasIngress || hasEgress);
+          });
+          if (hasRules) {
+            results.push({
+              node: lb,
+              message: `${lb.data.label} is an NLB — security group rules on NLB edges are ignored. Define rules on the target EC2 instances directly`,
+            });
+          }
+        });
+      return results;
+    },
+  },
+
   // ─── IAM ───────────────────────────────────────────────────────────────────
 
   {

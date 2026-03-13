@@ -3,21 +3,11 @@ import { useContext } from "react";
 import { RolesContext } from "../../config/rolesContext";
 import { NodeResizer } from "@reactflow/node-resizer";
 import "@reactflow/node-resizer/dist/style.css";
-
-const RESOURCE_COLORS = {
-  VPC:          { border: "#4d6bfe" },
-  Subnet:       { border: "#4d9ffe" },
-  EC2:          { border: "#8892aa" },
-  RDS:          { border: "#8892aa" },
-  LoadBalancer: { border: "#8892aa" },
-  IGW:          { border: "#52c41a" },
-  NATGateway:   { border: "#fa8c16" },
-  RouteTable:   { border: "#722ed1" },
-};
+import { resourceColor } from "../../config/resourceRegistry";
 
 export default function ResourceNode({ id, data, selected }) {
   const resourceType = data?.resourceType;
-  const colors = RESOURCE_COLORS[resourceType] || { border: "var(--border)" };
+  const colors = { border: resourceColor(resourceType) };
   const roles = useContext(RolesContext);
   const assignedRoleId = data?.config?.iam_role_id;
   const assignedRole = assignedRoleId ? roles.find((r) => r.id === assignedRoleId) : null;

@@ -1,22 +1,13 @@
 import { useState, useRef } from "react";
 import { AWS_REGIONS } from "../../config/awsRegions";
 import RoleManager from "./RoleManager";
+import { resourcesByCategory } from "../../config/resourceRegistry";
 
 const MONO = { fontFamily: "'JetBrains Mono', Consolas, monospace" };
 
-const resources = [
-  { type: "VPC",          color: "#4d6bfe" },
-  { type: "Subnet",       color: "#4d9ffe" },
-  { type: "EC2",          color: "var(--text-secondary)" },
-  { type: "RDS",          color: "var(--text-secondary)" },
-  { type: "LoadBalancer", color: "var(--text-secondary)" },
-];
-
-const infraResources = [
-  { type: "IGW",        color: "#52c41a", label: "Internet Gateway" },
-  { type: "NATGateway", color: "#fa8c16", label: "NAT Gateway"      },
-  { type: "RouteTable", color: "#722ed1", label: "Route Table"      },
-];
+const networkResources = resourcesByCategory("network");
+const computeResources = resourcesByCategory("compute");
+const infraResources   = resourcesByCategory("infra");
 
 const ghostBtnStyle = {
   width: "100%", padding: "7px 0",
@@ -72,11 +63,15 @@ function ResourcesTab({ onDragStart }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
       <div style={{ flex: 1, overflowY: "auto" }}>
-        <SectionLabel label="Compute & Data" />
-        {resources.map((r) => (
+        <SectionLabel label="Network" />
+        {networkResources.map((r) => (
           <DraggableItem key={r.type} {...r} onDragStart={onDragStart} />
         ))}
-        <SectionLabel label="Networking" />
+        <SectionLabel label="Compute & Data" />
+        {computeResources.map((r) => (
+          <DraggableItem key={r.type} {...r} onDragStart={onDragStart} />
+        ))}
+        <SectionLabel label="Infrastructure" />
         {infraResources.map((r) => (
           <DraggableItem key={r.type} {...r} onDragStart={onDragStart} />
         ))}

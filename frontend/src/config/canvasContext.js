@@ -1,20 +1,33 @@
+import { RESOURCE_TYPES } from "./resourceRegistry";
+
 /**
  * Builds a derived context object from raw canvas nodes and edges.
  * This is the single source of truth passed to all consequence rules and validation checks.
+ *
+ * byResourceType is auto-derived from RESOURCE_REGISTRY — no manual additions needed
+ * when new resource types are added to the registry.
  */
 export function buildContext(nodes, edges, roles = []) {
   const byType = (type) => nodes.filter((n) => n.data?.resourceType === type);
   const nodeById = (id) => nodes.find((n) => n.id === id);
 
-  const vpcs        = byType("VPC");
-  const subnets     = byType("Subnet");
-  const ec2         = byType("EC2");
-  const rds         = byType("RDS");
-  const lbs         = byType("LoadBalancer");
-  const igws        = byType("IGW");
-  const nats        = byType("NATGateway");
-  const rts         = byType("RouteTable");
-  const publics     = byType("Public");
+  // Auto-derived from registry — adding a new type to resourceRegistry.js
+  // automatically makes it available here as byResourceType["NewType"]
+  const byResourceType = RESOURCE_TYPES.reduce((acc, t) => {
+    acc[t] = byType(t);
+    return acc;
+  }, {});
+
+  // Named aliases for convenience and backwards compatibility
+  const vpcs    = byResourceType["VPC"];
+  const subnets = byResourceType["Subnet"];
+  const ec2     = byResourceType["EC2"];
+  const rds     = byResourceType["RDS"];
+  const lbs     = byResourceType["LoadBalancer"];
+  const igws    = byResourceType["IGW"];
+  const nats    = byResourceType["NATGateway"];
+  const rts     = byResourceType["RouteTable"];
+  const publics = byType("Public"); // Public is not in registry (deprecated node type)
 
   // IAM helpers
   const roleById     = (id) => roles.find((r) => r.id === id);
@@ -85,7 +98,9 @@ export function buildContext(nodes, edges, roles = []) {
   return {
     // Raw
     nodes, edges,
-    // By type
+    // Auto-derived map — byResourceType["EC2"], byResourceType["S3"] etc.
+    byResourceType,
+    // Named aliases — backwards compatible
     vpcs, subnets, ec2, rds, lbs, igws, nats, rts, publics,
     // Edge sets
     structuralEdges, assocEdges, trafficEdges,

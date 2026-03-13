@@ -4,39 +4,47 @@ const PROTOCOLS = ["TCP", "UDP", "ICMP", "HTTP", "HTTPS", "ANY"];
 const INGRESS_COLOR = "#52c41a";
 const EGRESS_COLOR  = "#ff4d4f";
 
-function RuleRow({ rule, index, onChange, onDelete }) {
+function RuleRow({ rule, index, onChange, onDelete, onBlur }) {
   return (
-    <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-      <input
-        type="text"
-        value={rule.port}
-        placeholder="Port"
-        onChange={(e) => onChange(index, { ...rule, port: e.target.value })}
-        style={{ ...inputStyle, flex: 1 }}
-      />
-      <select
-        value={rule.protocol}
-        onChange={(e) => onChange(index, { ...rule, protocol: e.target.value })}
-        style={{ ...inputStyle, flex: 1 }}
-      >
-        {PROTOCOLS.map((p) => <option key={p} value={p}>{p}</option>)}
-      </select>
-      <div
-        onClick={() => onDelete(index)}
-        style={{
-          width: 24, height: 24, borderRadius: "50%",
-          background: "#ff4d4f", color: "white",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          cursor: "pointer", fontSize: 13, fontWeight: "bold", flexShrink: 0,
-        }}
-      >
-        ✕
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <input
+          type="text"
+          value={rule.port}
+          placeholder="Port"
+          onChange={(e) => onChange(index, { ...rule, port: e.target.value, _mirrored: undefined })}
+          onBlur={() => onBlur && onBlur(index)}
+          style={{ ...inputStyle, flex: 1 }}
+        />
+        <select
+          value={rule.protocol}
+          onChange={(e) => onChange(index, { ...rule, protocol: e.target.value, _mirrored: undefined })}
+          style={{ ...inputStyle, flex: 1 }}
+        >
+          {PROTOCOLS.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <div
+          onClick={() => onDelete(index)}
+          style={{
+            width: 24, height: 24, borderRadius: "50%",
+            background: "#ff4d4f", color: "white",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", fontSize: 13, fontWeight: "bold", flexShrink: 0,
+          }}
+        >
+          ✕
+        </div>
       </div>
+      {rule._mirrored && (
+        <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3, paddingLeft: 2, fontStyle: "italic" }}>
+          ← mirrored from ingress
+        </div>
+      )}
     </div>
   );
 }
 
-function RuleSection({ title, color, rules, onChange, onAdd, onDelete, errors }) {
+function RuleSection({ title, subtitle, color, rules, onChange, onAdd, onDelete, onBlur, errors }) {
   return (
     <div style={{ marginBottom: 16 }}>
       {/* Section header */}
@@ -46,7 +54,12 @@ function RuleSection({ title, color, rules, onChange, onAdd, onDelete, errors })
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{ width: 10, height: 10, borderRadius: "50%", background: color }} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{title}</span>
+          <div>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{title}</span>
+            {subtitle && (
+              <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 6 }}>{subtitle}</span>
+            )}
+          </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ flex: 1, fontSize: 11, fontWeight: 600, color: "var(--text-muted)", minWidth: 60 }}>PORT</div>
@@ -59,7 +72,7 @@ function RuleSection({ title, color, rules, onChange, onAdd, onDelete, errors })
       <div style={{ maxHeight: 150, overflowY: "auto" }}>
         {rules.map((rule, i) => (
           <div key={i}>
-            <RuleRow rule={rule} index={i} onChange={onChange} onDelete={onDelete} />
+            <RuleRow rule={rule} index={i} onChange={onChange} onDelete={onDelete} onBlur={onBlur} />
             {errors[i] && (
               <div style={{ fontSize: 11, color: "#ff4d4f", marginTop: -4, marginBottom: 6 }}>
                 {errors[i]}
@@ -90,18 +103,65 @@ export default function EdgeConfigModal({
   const isEditing = existingIngress.length > 0 || existingEgress.length > 0;
 
   const [ingress, setIngress] = useState(
-    isEditing ? existingIngress : [{ port: "", protocol: "TCP" }]
+    isEditing
+      ? existingIngress.map((r) => r._id ? r : { ...r, _id: `mir_${Date.now()}_${Math.random().toString(36).slice(2,6)}` })
+      : [{ port: "", protocol: "TCP", _id: `mir_${Date.now()}_init` }]
   );
   const [egress, setEgress] = useState(existingEgress);
   const [ingressErrors, setIngressErrors] = useState([]);
   const [egressErrors, setEgressErrors] = useState([]);
+
+  // Each ingress rule is tracked by its index via a stable _id assigned at creation.
+  // Mirrored egress rules carry the same _id so we can update/delete them precisely
+  // without touching other rules.
+
+  const handleIngressChange = (i, updated) => {
+    const prev = ingress[i];
+    const next = ingress.map((rule, idx) => idx === i ? updated : rule);
+    setIngress(next);
+
+    // Only touch the mirrored egress rule that belongs to THIS ingress rule
+    setEgress((prevEgress) =>
+      prevEgress.map((r) => {
+        if (!r._mirrored || r._mirrorId !== prev._id) return r;
+        // Port edited — update the mirror
+        return { ...r, port: updated.port, protocol: updated.protocol };
+      })
+    );
+  };
+
+  const handleIngressAdd = () => {
+    const _id = `mir_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    setIngress((prev) => [...prev, { port: "", protocol: "TCP", _id }]);
+    // No mirror yet — port is empty, mirror added when port is first filled via onChange
+  };
+
+  const handleIngressDelete = (i) => {
+    const deleted = ingress[i];
+    setIngress((prev) => prev.filter((_, idx) => idx !== i));
+    // Remove only the mirrored egress rule that belongs to this ingress rule
+    setEgress((prev) => prev.filter((r) => !(r._mirrored && r._mirrorId === deleted._id)));
+  };
+
+  // When an ingress rule gets a valid port for the first time, add its mirror
+  const handleIngressPortBlur = (i) => {
+    const rule = ingress[i];
+    if (!rule.port.trim()) return;
+    if (!rule._id) return;
+    // Only add mirror if one doesn't exist yet for this rule
+    setEgress((prev) => {
+      const alreadyMirrored = prev.some((r) => r._mirrored && r._mirrorId === rule._id);
+      if (alreadyMirrored) return prev;
+      return [...prev, { port: rule.port, protocol: rule.protocol, _mirrored: true, _mirrorId: rule._id }];
+    });
+  };
 
   const validateSection = (rules) =>
     rules.map((r) => (!r.port.trim() ? "Port required" : null));
 
   const handleSave = () => {
     const iErr = validateSection(ingress);
-    const eErr = validateSection(egress);
+    const eErr = validateSection(egress.filter((r) => !r._mirrored));
     setIngressErrors(iErr);
     setEgressErrors(eErr);
 
@@ -159,24 +219,27 @@ export default function EdgeConfigModal({
 
         {/* Ingress section */}
         <RuleSection
-          title="Ingress"
+          title="Inbound"
+          subtitle={targetLabel ? `→ ${targetLabel}` : undefined}
           color={INGRESS_COLOR}
           rules={ingress}
           errors={ingressErrors}
-          onChange={(i, updated) => setIngress((r) => r.map((rule, idx) => idx === i ? updated : rule))}
-          onAdd={() => setIngress((r) => [...r, { port: "", protocol: "TCP" }])}
-          onDelete={(i) => setIngress((r) => r.filter((_, idx) => idx !== i))}
+          onChange={handleIngressChange}
+          onAdd={handleIngressAdd}
+          onDelete={handleIngressDelete}
+          onBlur={handleIngressPortBlur}
         />
 
         <div style={{ borderTop: "1px solid var(--border)", marginBottom: 16 }} />
 
         {/* Egress section */}
         <RuleSection
-          title="Egress"
+          title="Outbound"
+          subtitle={sourceLabel ? `← ${sourceLabel}` : undefined}
           color={EGRESS_COLOR}
           rules={egress}
           errors={egressErrors}
-          onChange={(i, updated) => setEgress((r) => r.map((rule, idx) => idx === i ? updated : rule))}
+          onChange={(i, updated) => setEgress((r) => r.map((rule, idx) => idx === i ? { ...updated, _mirrored: undefined } : rule))}
           onAdd={() => setEgress((r) => [...r, { port: "", protocol: "TCP" }])}
           onDelete={(i) => setEgress((r) => r.filter((_, idx) => idx !== i))}
         />

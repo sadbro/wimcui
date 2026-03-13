@@ -334,47 +334,7 @@ export const getRequiredParents = (type) => {
     .map((f) => f.parentType);
 };
 
-// Per-resource traffic connection rules
-export const trafficRules = {
-  EC2:          { allowedSources: ["EC2", "RDS", "LoadBalancer", "Public"], allowedTargets: ["EC2", "RDS", "LoadBalancer"] },
-  RDS:          { allowedSources: ["EC2"],                                  allowedTargets: ["EC2"] },
-  LoadBalancer: { allowedSources: ["Public", "EC2"],                        allowedTargets: ["EC2"] }, // Public->NLB blocked at connect time
-  Public:       { allowedSources: [],                                       allowedTargets: ["EC2", "LoadBalancer"] },
-  // Infrastructure resources — no traffic edges allowed
-  IGW:          null,
-  NATGateway:   null,
-  RouteTable:   null,
-  VPC:          null,
-  Subnet:       null,
-};
-
-// Association rules — which resource pairs can be linked with an association edge
-export const associationRules = {
-  RouteTable: { allowedTargets: ["Subnet", "IGW", "NATGateway"] },
-  Subnet:     { allowedTargets: ["RouteTable"] },
-};
-
-export const validateAssociationConnection = (sourceType, targetType) => {
-  const rules = associationRules[sourceType];
-  if (!rules) return `\${sourceType} does not support association connections`;
-  if (!rules.allowedTargets.includes(targetType))
-    return `\${sourceType} cannot be associated with \${targetType}`;
-  return null;
-};
-
-// Returns null if allowed, or an error string if blocked
-export const validateTrafficConnection = (sourceType, targetType) => {
-  const sourceRules = trafficRules[sourceType];
-  const targetRules = trafficRules[targetType];
-
-  if (!sourceRules || !targetRules)
-    return `${sourceType} does not support traffic connections`;
-
-  if (!sourceRules.allowedTargets.includes(targetType))
-    return `${sourceType} cannot connect to ${targetType}`;
-
-  if (!targetRules.allowedSources.includes(sourceType))
-    return `${targetType} cannot receive traffic from ${sourceType}`;
-
-  return null;
-};
+// ─── Connection rules are now in dedicated files ─────────────────────────────
+// Re-exported here for backwards compatibility during migration.
+export { trafficRules, validateTrafficConnection } from "./trafficRules";
+export { associationRules, validateAssociationConnection } from "./associationRules";

@@ -32,6 +32,11 @@ export const resourceFields = {
       type: "iam-role-select",
     },
     {
+      key: "sg_ids",
+      label: "Security Groups",
+      type: "sg-select",
+    },
+    {
       key: "instance_type",
       label: "Instance Type",
       type: "select",
@@ -56,6 +61,11 @@ export const resourceFields = {
 
   RDS: [
     subnetParent,
+    {
+      key: "sg_ids",
+      label: "Security Groups",
+      type: "sg-select",
+    },
     {
       key: "engine",
       label: "Engine",
@@ -109,6 +119,12 @@ export const resourceFields = {
       type: "select",
       options: ["application", "network"],
       required: true,
+    },
+    {
+      key: "sg_ids",
+      label: "Security Groups",
+      type: "sg-select",
+      visibleWhen: (form) => form.load_balancer_type !== "network",
     },
     {
       key: "internal",

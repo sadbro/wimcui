@@ -7,7 +7,7 @@ import { RESOURCE_TYPES } from "./resourceRegistry";
  * byResourceType is auto-derived from RESOURCE_REGISTRY — no manual additions needed
  * when new resource types are added to the registry.
  */
-export function buildContext(nodes, edges, roles = []) {
+export function buildContext(nodes, edges, roles = [], securityGroups = []) {
   const byType = (type) => nodes.filter((n) => n.data?.resourceType === type);
   const nodeById = (id) => nodes.find((n) => n.id === id);
 
@@ -95,6 +95,79 @@ export function buildContext(nodes, edges, roles = []) {
   const anyRtRoutesTo = (targetId) =>
     rts.some((rt) => rtRoutesTo(rt, targetId));
 
+  // SG helpers
+  const sgById = (id) => securityGroups.find((s) => s.id === id);
+
+  // Nodes that have at least one SG assigned (sg_ids non-empty)
+  const sgCapableNodes = [...ec2, ...rds, ...lbs];
+  const nodesWithSG    = sgCapableNodes.filter((n) => (n.data?.config?.sg_ids || []).length > 0);
+  const nodesWithoutSG = sgCapableNodes.filter((n) => (n.data?.config?.sg_ids || []).length === 0);
+
+  /**
+   * Derives the full security group definition for a node.
+   *
+   * Returns an array of { sg, edgeDerived: { inbound, outbound }, manual: { inbound, outbound } }
+   * — one entry per assigned SG.
+   *
+   * edgeDerived: rules computed from traffic edges touching the node (read-only, regenerated live)
+   * manual: rules stored on the SG object itself (user-defined in SGManager)
+   *
+   * Edge-derived rules resolve sourceNodeId/destNodeId to node labels for display.
+   * At HCL generation time both sets are merged into the aws_security_group block.
+   */
+  const deriveNodeSGs = (nodeId) => {
+    const node = nodeById(nodeId);
+    if (!node) return [];
+    const assignedIds = node.data?.config?.sg_ids || [];
+    if (assignedIds.length === 0) return [];
+
+    // Collect edge-derived rules — resolved to node labels for display
+    const edgeInbound  = [];
+    const edgeOutbound = [];
+
+    trafficEdges.forEach((e) => {
+      if (e.target === nodeId) {
+        (e.data?.ingress || []).forEach((r) => {
+          const srcNode = nodeById(e.source);
+          edgeInbound.push({
+            port:       r.port,
+            protocol:   r.protocol,
+            sourceNodeId:    e.source,
+            sourceNodeLabel: srcNode?.data?.label || e.source,
+          });
+        });
+      }
+      if (e.source === nodeId) {
+        (e.data?.egress || []).filter((r) => r.port?.trim()).forEach((r) => {
+          const tgtNode = nodeById(e.target);
+          edgeOutbound.push({
+            port:          r.port,
+            protocol:      r.protocol,
+            destNodeId:    e.target,
+            destNodeLabel: tgtNode?.data?.label || e.target,
+          });
+        });
+      }
+    });
+
+    // Primary SG (index 0) absorbs edge-derived rules
+    // Additional SGs carry only their manual rules
+    return assignedIds.map((sgId, idx) => {
+      const sg = sgById(sgId);
+      if (!sg) return null;
+      return {
+        sg,
+        edgeDerived: idx === 0
+          ? { inbound: edgeInbound, outbound: edgeOutbound }
+          : { inbound: [],          outbound: [] },
+        manual: {
+          inbound:  sg.inbound  || [],
+          outbound: sg.outbound || [],
+        },
+      };
+    }).filter(Boolean);
+  };
+
   return {
     // Raw
     nodes, edges,
@@ -115,6 +188,12 @@ export function buildContext(nodes, edges, roles = []) {
     routesForRt,
     rtRoutesTo,
     anyRtRoutesTo,
+    // Security Groups
+    securityGroups,
+    sgById,
+    nodesWithSG,
+    nodesWithoutSG,
+    deriveNodeSGs,
     // IAM
     roles,
     roleById,

@@ -76,6 +76,7 @@ export default function ConfigModal({
   editingNodeId = null,
   region = "us-east-1",
   roles = [],
+  securityGroups = [],
   onSave,
   onCancel,
 }) {
@@ -90,6 +91,8 @@ export default function ConfigModal({
         acc[f.key] = existingConfig[f.key];
       } else if (f.type === "iam-role-select") {
         acc[f.key] = "";
+      } else if (f.type === "sg-select") {
+        acc[f.key] = existingConfig[f.key] !== undefined ? existingConfig[f.key] : [];
       } else if (f.type === "multi-select") {
         acc[f.key] = existingConfig[f.key] !== undefined ? existingConfig[f.key] : [];
       } else if (f.type === "select") {
@@ -331,6 +334,56 @@ export default function ConfigModal({
                   {roles.length === 0 && (
                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
                       No roles defined — create one in the Configure tab
+                    </div>
+                  )}
+                </div>
+              ) : f.type === "sg-select" ? (
+                <div>
+                  {securityGroups.length === 0 ? (
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                      No security groups defined — create one in the Configure tab
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {securityGroups.map((sg) => {
+                        const selected = (form[f.key] || []).includes(sg.id);
+                        return (
+                          <div
+                            key={sg.id}
+                            onClick={() => {
+                              const current = form[f.key] || [];
+                              const next = selected
+                                ? current.filter((id) => id !== sg.id)
+                                : [...current, sg.id];
+                              setForm({ ...form, [f.key]: next });
+                            }}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 8,
+                              padding: "6px 8px", borderRadius: 5, cursor: "pointer",
+                              background: selected ? `${sg.color}18` : "var(--bg-surface)",
+                              border: `1px solid ${selected ? sg.color : "var(--border)"}`,
+                            }}
+                          >
+                            <div style={{
+                              width: 13, height: 13, borderRadius: 3, flexShrink: 0,
+                              border: `2px solid ${selected ? sg.color : "var(--border)"}`,
+                              background: selected ? sg.color : "transparent",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              fontSize: 9, color: "white",
+                            }}>
+                              {selected ? "✓" : ""}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>
+                                {sg.name}
+                              </div>
+                              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                                {(sg.inbound?.length || 0) + (sg.outbound?.length || 0)} manual rules
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

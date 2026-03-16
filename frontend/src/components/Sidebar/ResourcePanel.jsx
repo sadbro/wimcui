@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { AWS_REGIONS } from "../../config/awsRegions";
 import RoleManager from "./RoleManager";
 import { resourcesByCategory } from "../../config/resourceRegistry";
+import SGManager from "./SGManager";
 
 const MONO = { fontFamily: "'JetBrains Mono', Consolas, monospace" };
 
@@ -80,7 +81,7 @@ function ResourcesTab({ onDragStart }) {
   );
 }
 
-function ConfigureTab({ roles, onRolesChange, nodes, onAssignRole }) {
+function ConfigureTab({ roles, onRolesChange, nodes, edges, onAssignRole, securityGroups, onSGChange, onAssignSG }) {
   return (
     <div style={{ flex: 1, overflowY: "auto" }}>
       <RoleManager
@@ -88,6 +89,14 @@ function ConfigureTab({ roles, onRolesChange, nodes, onAssignRole }) {
         onRolesChange={onRolesChange}
         nodes={nodes || []}
         onAssignRole={onAssignRole}
+      />
+      <div style={{ borderTop: "1px solid var(--border)", margin: "12px 0" }} />
+      <SGManager
+        securityGroups={securityGroups || []}
+        onSGChange={onSGChange}
+        nodes={nodes || []}
+        edges={edges || []}
+        onAssignSG={onAssignSG}
       />
     </div>
   );
@@ -101,7 +110,8 @@ export default function ResourcePanel({
   onExport, onImport, onReviewCanvas, loading,
   onUndo, onRedo, canUndo, canRedo,
   roles, onRolesChange,
-  nodes, onAssignRole,
+  nodes, edges, onAssignRole,
+  securityGroups, onSGChange, onAssignSG,
 }) {
   const [activeTab, setActiveTab] = useState(0);
   const fileInputRef = useRef(null);
@@ -258,7 +268,11 @@ export default function ResourcePanel({
             roles={roles}
             onRolesChange={onRolesChange}
             nodes={nodes}
+            edges={edges}
             onAssignRole={onAssignRole}
+            securityGroups={securityGroups}
+            onSGChange={onSGChange}
+            onAssignSG={onAssignSG}
           />
         )}
       </div>

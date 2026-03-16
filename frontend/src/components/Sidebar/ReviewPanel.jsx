@@ -75,8 +75,14 @@ function TableHeader({ cols }) {
   );
 }
 
-function SummaryTab({ ctx, roles = [] }) {
-  const { vpcs, subnets, ec2, rds, lbs, igws, nats, rts, assocEdges, trafficEdges, nodeById } = ctx;
+function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
+  const { vpcs, subnets, ec2, rds, lbs, igws, nats, rts, assocEdges, trafficEdges, nodeById, sgById } = ctx;
+
+  const sgNamesForNode = (n) => {
+    const ids = n.data?.config?.sg_ids || [];
+    if (ids.length === 0) return "—";
+    return ids.map((id) => sgById?.(id)?.name || "?").join(", ");
+  };
 
   return (
     <div>
@@ -117,17 +123,19 @@ function SummaryTab({ ctx, roles = [] }) {
       {ec2.length > 0 && <>
         <SectionHeader title="EC2 Instances" />
         <TableHeader cols={[
-          { text: "Name",     width: "140px" },
+          { text: "Name",     width: "120px" },
           { text: "Instance", width: "90px"  },
-          { text: "Subnet",   width: "auto"  },
+          { text: "Subnet",   width: "90px"  },
+          { text: "SG",       width: "auto"  },
         ]} />
         {ec2.map((n) => {
           const subnet = nodeById(n.data.config?.subnetId);
           return (
             <Row key={n.id} cols={[
-              { text: n.data.label,                 width: "140px" },
+              { text: n.data.label,                 width: "120px" },
               { text: n.data.config?.instance_type, width: "90px", dim: true },
-              { text: subnet?.data?.label,          width: "auto", dim: true },
+              { text: subnet?.data?.label,          width: "90px", dim: true },
+              { text: sgNamesForNode(n),            width: "auto", dim: true },
             ]} />
           );
         })}
@@ -136,17 +144,19 @@ function SummaryTab({ ctx, roles = [] }) {
       {rds.length > 0 && <>
         <SectionHeader title="Databases" />
         <TableHeader cols={[
-          { text: "Name",   width: "140px" },
+          { text: "Name",   width: "120px" },
           { text: "Engine", width: "90px"  },
-          { text: "Subnet", width: "auto"  },
+          { text: "Subnet", width: "90px"  },
+          { text: "SG",     width: "auto"  },
         ]} />
         {rds.map((n) => {
           const subnet = nodeById(n.data.config?.subnetId);
           return (
             <Row key={n.id} cols={[
-              { text: n.data.label,                                                 width: "140px" },
+              { text: n.data.label,                                                 width: "120px" },
               { text: `${n.data.config?.engine} ${n.data.config?.engine_version}`, width: "90px", dim: true },
-              { text: subnet?.data?.label,                                          width: "auto", dim: true },
+              { text: subnet?.data?.label,                                          width: "90px", dim: true },
+              { text: sgNamesForNode(n),                                            width: "auto", dim: true },
             ]} />
           );
         })}
@@ -155,22 +165,61 @@ function SummaryTab({ ctx, roles = [] }) {
       {lbs.length > 0 && <>
         <SectionHeader title="Load Balancers" />
         <TableHeader cols={[
-          { text: "Name",    width: "140px" },
-          { text: "Type",    width: "90px"  },
-          { text: "Scheme",  width: "110px" },
-          { text: "Subnets", width: "auto"  },
+          { text: "Name",    width: "120px" },
+          { text: "Type",    width: "80px"  },
+          { text: "Scheme",  width: "90px"  },
+          { text: "Subnets", width: "60px"  },
+          { text: "SG",      width: "auto"  },
         ]} />
         {lbs.map((n) => {
           const subnetIds = n.data?.config?.subnets || [];
+          const isNLB = n.data?.config?.load_balancer_type === "network";
           return (
             <Row key={n.id} cols={[
-              { text: n.data.label,                          width: "140px" },
-              { text: n.data.config?.load_balancer_type,     width: "90px",  dim: true },
-              { text: n.data.config?.internal === "true" ? "internal" : "internet-facing", width: "110px", dim: true },
-              { text: `${subnetIds.length} subnet${subnetIds.length !== 1 ? "s" : ""}`, width: "auto", dim: true },
+              { text: n.data.label,                          width: "120px" },
+              { text: n.data.config?.load_balancer_type,     width: "80px",  dim: true },
+              { text: n.data.config?.internal === "true" ? "internal" : "internet-facing", width: "90px", dim: true },
+              { text: `${subnetIds.length} subnet${subnetIds.length !== 1 ? "s" : ""}`, width: "60px", dim: true },
+              { text: isNLB ? "n/a" : sgNamesForNode(n),    width: "auto",  dim: true },
             ]} />
           );
         })}
+
+      {securityGroups.length > 0 && <>
+        <SectionHeader title="Security Groups" />
+        <TableHeader cols={[
+          { text: "Name",   width: "140px" },
+          { text: "In",     width: "40px"  },
+          { text: "Out",    width: "40px"  },
+          { text: "Nodes",  width: "auto"  },
+        ]} />
+        {securityGroups.map((sg) => {
+          const assignedNodes = [...ec2, ...rds, ...lbs].filter(
+            (n) => (n.data?.config?.sg_ids || []).includes(sg.id)
+          );
+          // Total inbound = manual + all edge-derived inbound from assigned nodes
+          let totalIn  = sg.inbound?.length  || 0;
+          let totalOut = sg.outbound?.length || 0;
+          assignedNodes.forEach((n) => {
+            const result  = ctx.deriveNodeSGs(n.id);
+            const primary = result[0];
+            if (primary && primary.sg.id === sg.id) {
+              totalIn  += primary.edgeDerived.inbound.length;
+              totalOut += primary.edgeDerived.outbound.length;
+            }
+          });
+          return (
+            <Row key={sg.id} cols={[
+              { text: sg.name,                    width: "140px" },
+              { text: `${totalIn}`,               width: "40px",  dim: true },
+              { text: `${totalOut}`,              width: "40px",  dim: true },
+              { text: assignedNodes.length > 0
+                  ? assignedNodes.map((n) => n.data.label).join(", ")
+                  : "unassigned",                 width: "auto",  dim: true },
+            ]} />
+          );
+        })}
+      </>}
 
       {/* IAM Roles legend */}
       {roles.length > 0 && (
@@ -527,9 +576,9 @@ function HclReadinessTab({ ctx }) {
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
-export default function ReviewPanel({ nodes, edges, onClose, region, roles = [], width = 440, onStartDrag }) {
+export default function ReviewPanel({ nodes, edges, onClose, region, roles = [], securityGroups = [], width = 440, onStartDrag }) {
   const [activeTab, setActiveTab] = useState(0);
-  const ctx = buildContext(nodes, edges, roles);
+  const ctx = buildContext(nodes, edges, roles, securityGroups);
 
   const hclChecks  = buildHclChecks(ctx);
   const errors     = hclChecks.filter((c) => !c.ok && !c.warn).length;
@@ -599,7 +648,7 @@ export default function ReviewPanel({ nodes, edges, onClose, region, roles = [],
 
       {/* Body */}
       <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "0 18px 18px" }}>
-        {activeTab === 0 && <SummaryTab ctx={ctx} roles={roles} />}
+        {activeTab === 0 && <SummaryTab ctx={ctx} roles={roles} securityGroups={securityGroups} />}
         {activeTab === 1 && <ConsequencesTab ctx={ctx} />}
         {activeTab === 2 && <HclReadinessTab ctx={ctx} />}
       </div>

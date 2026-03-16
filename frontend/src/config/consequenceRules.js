@@ -477,26 +477,74 @@ export const consequenceRules = [
   // ─── SECURITY GROUPS ──────────────────────────────────────────────────────
 
   {
+    id: "sg_missing",
+    category: "security",
+    check: ({ nodesWithoutSG, securityGroups }) => {
+      // Only fire if at least one SG has been defined on the canvas
+      if ((securityGroups || []).length === 0) return [];
+      return nodesWithoutSG
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has no Security Group assigned — AWS default SG applies (all inbound blocked, all outbound allowed). Assign a Security Group in the Configure tab.`,
+        }));
+    },
+  },
+
+  {
+    id: "sg_defined_unassigned",
+    category: "smell",
+    check: ({ securityGroups, nodesWithSG }) => {
+      const assignedIds = new Set(
+        nodesWithSG.flatMap((n) => n.data?.config?.sg_ids || [])
+      );
+      return securityGroups
+        .filter((sg) => !assignedIds.has(sg.id))
+        .map((sg) => ({
+          node: null,
+          message: `Security Group "${sg.name}" is defined but not assigned to any node — will generate a dead aws_security_group resource in Terraform`,
+        }));
+    },
+  },
+
+  {
     id: "sg_wide_open_ssh",
     category: "security",
-    check: ({ trafficEdges, nodeById }) => {
+    check: ({ securityGroups, nodesWithSG, nodeById }) => {
       const results = [];
-      trafficEdges.forEach((e) => {
-        const target = nodeById(e.target);
-        if (!target) return;
-        const ingress = e.data?.ingress || [];
-        const hasOpenSSH = ingress.some(
-          (r) => (r.port === "22" || r.port === "3389") && r.protocol !== "ANY"
-        );
-        if (hasOpenSSH) {
-          results.push({
-            node: target,
-            message: `${target.data.label} has SSH/RDP (port ${ingress.find(r => r.port === "22" || r.port === "3389")?.port}) open — ensure source is restricted to a known CIDR, not 0.0.0.0/0`,
-          });
-        }
+      nodesWithSG.forEach((node) => {
+        const sgIds = node.data?.config?.sg_ids || [];
+        sgIds.forEach((sgId) => {
+          const sg = securityGroups.find((s) => s.id === sgId);
+          if (!sg) return;
+          const sshRule = (sg.inbound || []).find(
+            (r) => (r.port === "22" || r.port === "3389") &&
+                   (r.cidr === "0.0.0.0/0" || r.cidr === "::/0")
+          );
+          if (sshRule) {
+            results.push({
+              node,
+              message: `${node.data.label} SG "${sg.name}" allows SSH/RDP (port ${sshRule.port}) from 0.0.0.0/0 — restrict to a known CIDR range`,
+            });
+          }
+        });
       });
       return results;
     },
+  },
+
+  {
+    id: "sg_nlb_assigned",
+    category: "smell",
+    check: ({ lbs, securityGroups }) =>
+      lbs
+        .filter((lb) =>
+          lb.data?.config?.load_balancer_type === "network" &&
+          (lb.data?.config?.sg_ids || []).length > 0
+        )
+        .map((lb) => ({
+          node: lb,
+          message: `${lb.data.label} is an NLB — NLBs do not support Security Groups. Remove the SG assignment.`,
+        })),
   },
 
   {
@@ -506,21 +554,20 @@ export const consequenceRules = [
       const results = [];
       trafficEdges.forEach((e) => {
         const ingress = e.data?.ingress || [];
-        const egress  = e.data?.egress  || [];
-        const manualEgress = egress.filter((r) => !r._mirrored);
+        const egress  = (e.data?.egress  || []).filter((r) => !r._mirrored);
         const src = nodeById(e.source);
         const tgt = nodeById(e.target);
         if (!src || !tgt) return;
         if (ingress.length > 0 && egress.length === 0) {
           results.push({
             node: tgt,
-            message: `${src.data.label} → ${tgt.data.label} has inbound rules but no outbound rules — ${src.data.label}'s SG will block return traffic`,
+            message: `${src.data.label} → ${tgt.data.label} has inbound rules but no outbound — ${src.data.label}'s SG will block return traffic`,
           });
         }
         if (egress.length > 0 && ingress.length === 0) {
           results.push({
             node: src,
-            message: `${src.data.label} → ${tgt.data.label} has outbound rules but no inbound rules — ${tgt.data.label}'s SG will block incoming traffic`,
+            message: `${src.data.label} → ${tgt.data.label} has outbound rules but no inbound — ${tgt.data.label}'s SG will block incoming traffic`,
           });
         }
       });
@@ -528,31 +575,7 @@ export const consequenceRules = [
     },
   },
 
-  {
-    id: "sg_nlb_rules_ignored",
-    category: "smell",
-    check: ({ lbs, trafficEdges, nodeById }) => {
-      const results = [];
-      lbs
-        .filter((lb) => lb.data?.config?.load_balancer_type === "network")
-        .forEach((lb) => {
-          const hasRules = trafficEdges.some((e) => {
-            const hasIngress = (e.data?.ingress || []).length > 0;
-            const hasEgress  = (e.data?.egress  || []).length > 0;
-            return (e.source === lb.id || e.target === lb.id) && (hasIngress || hasEgress);
-          });
-          if (hasRules) {
-            results.push({
-              node: lb,
-              message: `${lb.data.label} is an NLB — security group rules on NLB edges are ignored. Define rules on the target EC2 instances directly`,
-            });
-          }
-        });
-      return results;
-    },
-  },
-
-  // ─── IAM ───────────────────────────────────────────────────────────────────
+    // ─── IAM ───────────────────────────────────────────────────────────────────
 
   {
     id: "ec2_no_iam_role",

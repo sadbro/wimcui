@@ -8,6 +8,9 @@ import StructuralEdge from "../Edges/StructuralEdge";
 import AssociationEdge from "../Edges/AssociationEdge";
 import ReviewPanel from "../Sidebar/ReviewPanel";
 import { RolesContext } from "../../config/rolesContext";
+import { RESOURCE_REGISTRY } from "../../config/resourceRegistry";
+import SGAutoCreateModal from "../Modal/SGAutoCreateModal";
+import { SecurityGroupsContext } from "../../config/securityGroupsContext";
 import TrafficEdge from "../Edges/TrafficEdge";
 import { hasConfig, getRequiredParents, resourceFields } from "../../config/resourceConfig";
 import { validateTrafficConnection } from "../../config/trafficRules";
@@ -40,7 +43,7 @@ const getId = (label, existingNodes) => {
   return `${key}_${next}`;
 };
 
-function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterControls, region = "us-east-1", onRegionChange, roles = [], onRolesChange, reviewPanelWidth = 440, onReviewPanelDrag }) {
+function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterControls, region = "us-east-1", onRegionChange, roles = [], onRolesChange, reviewPanelWidth = 440, onReviewPanelDrag, securityGroups = [], onSGChange }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [toast, setToast] = useState(null);
@@ -52,6 +55,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
   const [pendingEdge, setPendingEdge] = useState(null);   // params from onConnect
   const [editingEdge, setEditingEdge] = useState(null);   // existing edge being edited
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [pendingSGPrompt, setPendingSGPrompt] = useState(null); // nodes needing SG auto-create
 
   // Undo / Redo history
   const [past,   setPast]   = useState([]);
@@ -65,37 +69,60 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
   const edgesRef = useRef(edges);
   useEffect(() => { edgesRef.current = edges; }, [edges]);
 
+  const rolesRef = useRef(roles);
+  useEffect(() => { rolesRef.current = roles; }, [roles]);
+
+  const securityGroupsRef = useRef(securityGroups);
+  useEffect(() => { securityGroupsRef.current = securityGroups; }, [securityGroups]);
+
   // Always-fresh ref to showToast
   const showToastRef = useRef(null);
 
   const snapshot = useCallback(() => {
-    setPast((p) => [...p.slice(-49), { nodes: nodesRef.current, edges: edgesRef.current, roles }]);
+    setPast((p) => [...p.slice(-49), {
+      nodes:          nodesRef.current,
+      edges:          edgesRef.current,
+      roles:          rolesRef.current,
+      securityGroups: securityGroupsRef.current,
+    }]);
     setFuture([]);
-  }, [roles]);
+  }, []); // no deps — reads everything from always-fresh refs
 
   const undo = useCallback(() => {
     setPast((p) => {
       if (p.length === 0) return p;
       const prev = p[p.length - 1];
-      setFuture((f) => [{ nodes: nodesRef.current, edges: edgesRef.current, roles }, ...f.slice(0, 49)]);
+      setFuture((f) => [{
+        nodes:          nodesRef.current,
+        edges:          edgesRef.current,
+        roles:          rolesRef.current,
+        securityGroups: securityGroupsRef.current,
+      }, ...f.slice(0, 49)]);
       setNodes(prev.nodes);
       setEdges(prev.edges);
-      if (prev.roles && onRolesChange) onRolesChange(prev.roles);
+      if (prev.roles          && onRolesChange) onRolesChange(prev.roles);
+      if (prev.securityGroups && onSGChange)    onSGChange(prev.securityGroups);
       return p.slice(0, -1);
     });
-  }, [roles, onRolesChange, setNodes, setEdges]);
+  }, [onRolesChange, onSGChange, setNodes, setEdges]);
 
   const redo = useCallback(() => {
     setFuture((f) => {
       if (f.length === 0) return f;
       const next = f[0];
-      setPast((p) => [...p.slice(-49), { nodes: nodesRef.current, edges: edgesRef.current, roles }]);
+      setPast((p) => [...p.slice(-49), {
+        nodes:          nodesRef.current,
+        edges:          edgesRef.current,
+        roles:          rolesRef.current,
+        securityGroups: securityGroupsRef.current,
+      }]);
       setNodes(next.nodes);
       setEdges(next.edges);
-      if (next.roles && onRolesChange) onRolesChange(next.roles);
+      if (next.roles          && onRolesChange) onRolesChange(next.roles);
+      if (next.securityGroups && onSGChange)    onSGChange(next.securityGroups);
       return f.slice(1);
     });
-  }, [roles, onRolesChange, setNodes, setEdges]);
+  }, [onRolesChange, onSGChange, setNodes, setEdges]);
 
   useEffect(() => {
     if (editTrigger > 0 && selectedNode) {
@@ -543,6 +570,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
       version: CANVAS_VERSION,
       exportedAt: new Date().toISOString(),
       roles: roles || [],
+      securityGroups: securityGroups || [],
       region,
       nodes: nodes.map(({ id, type, position, style, data }) => ({ id, type, position, style, data })),
       edges: edges.map(({ id, type, source, target, sourceHandle, targetHandle, markerEnd, data }) => ({
@@ -627,6 +655,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
 
         if (state.region && onRegionChange) onRegionChange(state.region);
         if (state.roles && onRolesChange) onRolesChange(state.roles);
+        if (state.securityGroups && onSGChange) onSGChange(state.securityGroups);
 
         // Deprecation warning for Public nodes
         const publicNodes = state.nodes.filter((n) => n.data?.resourceType === "Public");
@@ -639,29 +668,61 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
 
         snapshotRef.current();
         const validRoleIds = new Set((state.roles || []).map((r) => r.id));
+        const validSGIds   = new Set((state.securityGroups || []).map((s) => s.id));
         const remappedNodes = state.nodes.map((n) => {
           const roleId = n.data?.config?.iam_role_id;
           const hasDanglingRole = roleId && !validRoleIds.has(roleId);
+          const sgIds = n.data?.config?.sg_ids || [];
+          const cleanSGIds = sgIds.filter((id) => validSGIds.has(id));
+          const hasDanglingSG = cleanSGIds.length !== sgIds.length;
+          const cleanConfig = {
+            ...(hasDanglingRole ? { ...n.data.config, iam_role_id: "" } : n.data.config),
+            ...(hasDanglingSG   ? { sg_ids: cleanSGIds } : {}),
+          };
           return {
             ...n,
             type: n.data?.resourceType === "Public" ? "publicNode" : "resourceNode",
             data: {
-            ...(hasDanglingRole ? { ...n.data, config: { ...n.data.config, iam_role_id: "" } } : n.data),
-            onDelete: onDeleteNode,
-          },
+              ...n.data,
+              config: cleanConfig,
+              onDelete: onDeleteNode,
+            },
           };
         });
 
-        if (remappedNodes.some((n, i) => {
+        const hadDanglingRole = remappedNodes.some((n, i) => {
           const roleId = state.nodes[i]?.data?.config?.iam_role_id;
           return roleId && !validRoleIds.has(roleId);
-        })) {
-          showToast("Some nodes had references to deleted roles — cleared on import.", true);
-        }
+        });
+        const hadDanglingSG = remappedNodes.some((n, i) => {
+          const sgIds = state.nodes[i]?.data?.config?.sg_ids || [];
+          return sgIds.some((id) => !validSGIds.has(id));
+        });
+        if (hadDanglingRole) showToast("Some nodes had references to deleted roles — cleared on import.", true);
+        if (hadDanglingSG)   showToast("Some nodes had references to deleted security groups — cleared on import.", true);
 
         setNodes(remappedNodes);
         setEdges(state.edges);
-        if (warnings.length === 0 && publicNodes.length === 0) showToast("Canvas imported.");
+
+        // SG auto-create prompt — fire if sgCapable nodes have traffic edges but no sg_ids
+        const sgCapableTypes = Object.entries(RESOURCE_REGISTRY)
+          .filter(([, def]) => def.sgCapable)
+          .map(([type]) => type);
+        const importedEdges = state.edges;
+        const nodesNeedingSG = remappedNodes.filter((n) => {
+          if (!sgCapableTypes.includes(n.data?.resourceType)) return false;
+          const hasSGs = (n.data?.config?.sg_ids || []).length > 0;
+          if (hasSGs) return false;
+          const hasTraffic = importedEdges.some(
+            (e) => e.type === "traffic" && (e.source === n.id || e.target === n.id)
+          );
+          return hasTraffic;
+        });
+        if (nodesNeedingSG.length > 0) {
+          setPendingSGPrompt(nodesNeedingSG);
+        } else if (warnings.length === 0 && publicNodes.length === 0) {
+          showToast("Canvas imported.");
+        }
       } catch (err) {
         showToast(`Import failed: ${err.message}`, true);
       }
@@ -709,6 +770,14 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
               : n
           ));
         },
+        onAssignSG: (nodeId, sgIds) => {
+          snapshotRef.current();
+          setNodes((nds) => nds.map((n) =>
+            n.id === nodeId
+              ? { ...n, data: { ...n.data, config: { ...n.data.config, sg_ids: sgIds } } }
+              : n
+          ));
+        },
         loading: false,
       });
     }
@@ -727,6 +796,13 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
       onRegisterControls((prev) => ({ ...prev, nodes }));
     }
   }, [nodes]);
+
+  // Sync edges to parent so SGManager can derive live SG rules
+  useEffect(() => {
+    if (onRegisterControls) {
+      onRegisterControls((prev) => ({ ...prev, edges }));
+    }
+  }, [edges]);
 
   // Sync undo/redo availability to parent so buttons update reactively
   useEffect(() => {
@@ -749,8 +825,53 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [undo, redo]);
 
+  // Auto-create one SG per node, assign it, update App.jsx securityGroups state
+  const handleAutoCreateSGs = (nodes) => {
+    const SG_COLORS = [
+      "#f97316", "#06b6d4", "#84cc16", "#ec4899",
+      "#8b5cf6", "#14b8a6", "#f59e0b", "#6366f1",
+    ];
+    const newSGs = [];
+    const nodeUpdates = {};
+    nodes.forEach((node, i) => {
+      const sgName = `${node.data.label.replace(/\./g, "-")}-sg`;
+      // Skip if SG with this name already exists
+      const alreadyExists = (securityGroups || []).some((s) => s.name === sgName);
+      if (alreadyExists) return;
+      const sg = {
+        id:       `sg_auto_${Date.now()}_${i}`,
+        name:     sgName,
+        color:    SG_COLORS[i % SG_COLORS.length],
+        inbound:  [],
+        outbound: [{ port: "0", protocol: "ALL", cidr: "0.0.0.0/0" }],
+      };
+      newSGs.push(sg);
+      nodeUpdates[node.id] = sg.id;
+    });
+
+    if (newSGs.length > 0) {
+      snapshotRef.current();
+      if (onSGChange) onSGChange([...(securityGroups || []), ...newSGs]);
+      setNodes((nds) => nds.map((n) =>
+        nodeUpdates[n.id]
+          ? { ...n, data: { ...n.data, config: { ...n.data.config, sg_ids: [nodeUpdates[n.id]] } } }
+          : n
+      ));
+      showToast(`Created ${newSGs.length} Security Group${newSGs.length !== 1 ? "s" : ""} — review and edit in the Configure tab.`);
+    }
+    setPendingSGPrompt(null);
+  };
+
   return (
     <div style={{ flex: 1, minWidth: 0, height: "100%", position: "relative", display: "flex" }}>
+
+      {pendingSGPrompt && (
+        <SGAutoCreateModal
+          missingNodes={pendingSGPrompt}
+          onAutoCreate={handleAutoCreateSGs}
+          onSkip={() => { setPendingSGPrompt(null); showToast("Canvas imported."); }}
+        />
+      )}
 
       {pendingDrop && (
         <ConfigModal
@@ -758,6 +879,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
           canvasNodes={nodes}
           region={region}
           roles={roles}
+          securityGroups={securityGroups}
           onSave={onModalSave}
           onCancel={() => setPendingDrop(null)}
         />
@@ -771,6 +893,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
           editingNodeId={editingNode.id}
           region={region}
           roles={roles}
+          securityGroups={securityGroups}
           onSave={onEditSave}
           onCancel={() => setEditingNode(null)}
         />
@@ -885,6 +1008,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
           edges={edges}
           region={region}
           roles={roles}
+          securityGroups={securityGroups}
           width={reviewPanelWidth}
           onStartDrag={onReviewPanelDrag}
           onClose={() => setReviewOpen(false)}
@@ -897,9 +1021,11 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
 export default function InfraCanvas(props) {
   return (
     <RolesContext.Provider value={props.roles || []}>
-      <ReactFlowProvider>
-        <Canvas {...props} />
-      </ReactFlowProvider>
+      <SecurityGroupsContext.Provider value={props.securityGroups || []}>
+        <ReactFlowProvider>
+          <Canvas {...props} />
+        </ReactFlowProvider>
+      </SecurityGroupsContext.Provider>
     </RolesContext.Provider>
   );
 }

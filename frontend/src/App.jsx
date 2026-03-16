@@ -10,12 +10,15 @@ function App() {
   const [editTrigger, setEditTrigger] = useState(0);
   const [theme, setTheme] = useState("dark");
   const [roles, setRoles] = useState([]);
+  const [securityGroups, setSecurityGroups] = useState([]);
   const [region, setRegion] = useState("us-east-1");
   const [canvasControls, setCanvasControls] = useState({
     onExport: null,
     onImport: null,
     onReviewCanvas: null,
     onAssignRole: null,
+    onAssignSG: null,
+    edges: [],
     undo: null,
     redo: null,
     canUndo: false,
@@ -87,7 +90,9 @@ function App() {
         onReviewCanvas={canvasControls.onReviewCanvas}
         loading={canvasControls.loading}
         nodes={canvasControls.nodes || []}
+        edges={canvasControls.edges || []}
         onAssignRole={canvasControls.onAssignRole}
+        onAssignSG={canvasControls.onAssignSG}
         onUndo={canvasControls.undo}
         onRedo={canvasControls.redo}
         canUndo={!!canvasControls.canUndo}
@@ -96,6 +101,8 @@ function App() {
         onRegionChange={setRegion}
         roles={roles}
         onRolesChange={setRoles}
+        securityGroups={securityGroups}
+        onSGChange={setSecurityGroups}
       />
       <InfraCanvas
         reviewPanelWidth={rightWidth}
@@ -108,6 +115,8 @@ function App() {
         onRegionChange={setRegion}
         roles={roles}
         onRolesChange={setRoles}
+        securityGroups={securityGroups}
+        onSGChange={setSecurityGroups}
       />
     </div>
   );

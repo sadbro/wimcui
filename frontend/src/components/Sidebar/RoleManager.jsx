@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { IAM_POLICY_GROUPS, ROLE_COLOR_PALETTE } from "../../config/iamConfig";
+import { RESOURCE_REGISTRY } from "../../config/resourceRegistry";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -179,7 +180,10 @@ export default function RoleManager({ roles, onRolesChange, nodes = [], onAssign
   const [creating, setCreating]   = useState(false);
   const [assigning, setAssigning] = useState(null); // role being assigned
 
-  const ec2Nodes = nodes.filter((n) => n.data?.resourceType === "EC2");
+  const iamCapableTypes = Object.entries(RESOURCE_REGISTRY)
+    .filter(([, def]) => def.iamCapable)
+    .map(([type]) => type);
+  const ec2Nodes = nodes.filter((n) => iamCapableTypes.includes(n.data?.resourceType));
 
   const handleAssign = (roleId, nodeId, checked) => {
     if (onAssignRole) onAssignRole(nodeId, checked ? roleId : "");

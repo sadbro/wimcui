@@ -14,17 +14,22 @@
  */
 
 export const trafficRules = {
-  EC2:          { allowedSources: ["EC2", "RDS", "LoadBalancer", "Public"], allowedTargets: ["EC2", "RDS", "LoadBalancer"] },
-  RDS:          { allowedSources: ["EC2"],                                  allowedTargets: ["EC2"] },
-  LoadBalancer: { allowedSources: ["Public", "EC2"],                        allowedTargets: ["EC2"] },
-  Public:       { allowedSources: [],                                       allowedTargets: ["EC2", "LoadBalancer"] },
+  EC2:          { allowedSources: ["EC2", "RDS", "LoadBalancer", "Public", "ECS", "Lambda"], allowedTargets: ["EC2", "RDS", "LoadBalancer", "ECS"] },
+  RDS:          { allowedSources: ["EC2", "ECS", "Lambda"],                                  allowedTargets: ["EC2"] },
+  LoadBalancer: { allowedSources: ["Public", "EC2"],                                         allowedTargets: ["EC2", "ECS"] },
+  Public:       { allowedSources: [],                                                         allowedTargets: ["EC2", "LoadBalancer", "ECS"] },
+  ECS:          { allowedSources: ["LoadBalancer", "EC2", "Public"],                          allowedTargets: ["RDS", "EC2", "SQS", "DynamoDB"] },
+  Lambda:       { allowedSources: [],                                                         allowedTargets: ["RDS", "SQS", "DynamoDB", "ECS"] },
   // Infrastructure resources — no traffic edges
   IGW:          null,
   NATGateway:   null,
   RouteTable:   null,
   VPC:          null,
   Subnet:       null,
+  // Global services — no SG-based traffic edges (access via IAM policies)
   S3:           null,
+  DynamoDB:     null,
+  SQS:          null,
 };
 
 /**

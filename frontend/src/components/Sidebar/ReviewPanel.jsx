@@ -75,15 +75,13 @@ function TableHeader({ cols }) {
   );
 }
 
-function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
-  const { vpcs, subnets, ec2, rds, lbs, igws, nats, rts, assocEdges, trafficEdges, nodeById, sgById } = ctx;
-  const s3 = ctx.byResourceType?.["S3"] || [];
-
-  const sgNamesForNode = (n) => {
-    const ids = n.data?.config?.sg_ids || [];
-    if (ids.length === 0) return "—";
-    return ids.map((id) => sgById?.(id)?.name || "?").join(", ");
-  };
+function SummaryTab({ ctx, roles = [] }) {
+  const { vpcs, subnets, ec2, rds, lbs, igws, nats, rts, assocEdges, trafficEdges, nodeById } = ctx;
+  const s3       = ctx.byResourceType?.["S3"]       || [];
+  const ecs      = ctx.byResourceType?.["ECS"]      || [];
+  const lambdas  = ctx.byResourceType?.["Lambda"]   || [];
+  const dynamo   = ctx.byResourceType?.["DynamoDB"] || [];
+  const sqs      = ctx.byResourceType?.["SQS"]      || [];
 
   return (
     <div>
@@ -319,6 +317,80 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
         ))}
       </>}
 
+      {ecs.length > 0 && <>
+        <SectionHeader title="ECS Services" />
+        <TableHeader cols={[
+          { text: "Name",        width: "140px" },
+          { text: "Launch",      width: "70px"  },
+          { text: "CPU",         width: "60px"  },
+          { text: "Memory",      width: "60px"  },
+          { text: "Count",       width: "auto"  },
+        ]} />
+        {ecs.map((n) => (
+          <Row key={n.id} cols={[
+            { text: n.data.label,                    width: "140px" },
+            { text: n.data.config?.launch_type,      width: "70px",  dim: true },
+            { text: n.data.config?.cpu,              width: "60px",  dim: true },
+            { text: n.data.config?.memory,           width: "60px",  dim: true },
+            { text: n.data.config?.desired_count,    width: "auto",  dim: true },
+          ]} />
+        ))}
+      </>}
+
+      {lambdas.length > 0 && <>
+        <SectionHeader title="Lambda Functions" />
+        <TableHeader cols={[
+          { text: "Name",    width: "140px" },
+          { text: "Runtime", width: "110px" },
+          { text: "Memory",  width: "70px"  },
+          { text: "Timeout", width: "auto"  },
+        ]} />
+        {lambdas.map((n) => (
+          <Row key={n.id} cols={[
+            { text: n.data.label,                  width: "140px" },
+            { text: n.data.config?.runtime,        width: "110px", dim: true },
+            { text: n.data.config?.memory_size ? n.data.config.memory_size + "MB" : "—", width: "70px", dim: true },
+            { text: n.data.config?.timeout ? n.data.config.timeout + "s" : "—",          width: "auto",  dim: true },
+          ]} />
+        ))}
+      </>}
+
+      {dynamo.length > 0 && <>
+        <SectionHeader title="DynamoDB Tables" />
+        <TableHeader cols={[
+          { text: "Name",    width: "140px" },
+          { text: "Billing", width: "110px" },
+          { text: "PK",      width: "90px"  },
+          { text: "PITR",    width: "auto"  },
+        ]} />
+        {dynamo.map((n) => (
+          <Row key={n.id} cols={[
+            { text: n.data.label,                           width: "140px" },
+            { text: n.data.config?.billing_mode,            width: "110px", dim: true },
+            { text: `${n.data.config?.hash_key || "—"} (${n.data.config?.hash_key_type || "?"})`, width: "90px", dim: true },
+            { text: n.data.config?.point_in_time_recovery === "true" ? "on" : "⚠ off", width: "auto", dim: n.data.config?.point_in_time_recovery === "true" },
+          ]} />
+        ))}
+      </>}
+
+      {sqs.length > 0 && <>
+        <SectionHeader title="SQS Queues" />
+        <TableHeader cols={[
+          { text: "Name",  width: "140px" },
+          { text: "Type",  width: "80px"  },
+          { text: "DLQ",   width: "60px"  },
+          { text: "Retention", width: "auto" },
+        ]} />
+        {sqs.map((n) => (
+          <Row key={n.id} cols={[
+            { text: n.data.label,                              width: "140px" },
+            { text: n.data.config?.fifo === "true" ? "FIFO" : "Standard", width: "80px", dim: true },
+            { text: n.data.config?.dlq_enabled === "true" ? "yes" : "⚠ no", width: "60px", dim: n.data.config?.dlq_enabled === "true" },
+            { text: n.data.config?.message_retention ? n.data.config.message_retention + "s" : "default", width: "auto", dim: true },
+          ]} />
+        ))}
+      </>}
+
       {assocEdges.length > 0 && <>
         <SectionHeader title="Associations" />
         <TableHeader cols={[
@@ -431,7 +503,11 @@ function ConsequencesTab({ ctx }) {
 function buildHclChecks(ctx) {
   const checks = [];
   const { vpcs, subnets, ec2, rds, lbs, igws, nats, rts, assocEdges, anyRtRoutesTo, rtBySubnet, publicSubnets, hasTrafficEdge, hasAnyEdge, nodes, nodeById, roles = [] } = ctx;
-  const s3 = ctx.byResourceType?.["S3"] || [];
+  const s3      = ctx.byResourceType?.["S3"]       || [];
+  const ecs     = ctx.byResourceType?.["ECS"]      || [];
+  const lambdas = ctx.byResourceType?.["Lambda"]   || [];
+  const dynamo  = ctx.byResourceType?.["DynamoDB"] || [];
+  const sqs     = ctx.byResourceType?.["SQS"]      || [];
 
   // Hard fails — Terraform will not apply
   rts.forEach((rt) => {
@@ -572,8 +648,62 @@ function buildHclChecks(ctx) {
       checks.push({ ok: false, warn: true, message: `${b.data.label} has force_destroy enabled — all objects will be destroyed on terraform destroy` });
   });
 
+  // ─── ECS hard fails ────────────────────────────────────────────────────────
+  ecs.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.image?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a container image — required for task definition` });
+    if (!cfg.desired_count?.toString().trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing desired count` });
+    if (!cfg.cpu)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing CPU allocation` });
+    if (!cfg.memory)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing memory allocation` });
+    if (parseInt(cfg.desired_count, 10) === 0)
+      checks.push({ ok: false, warn: true, message: `${n.data.label} desired count is 0 — service will be created but no tasks will run` });
+  });
+
+  // ─── Lambda hard fails ─────────────────────────────────────────────────────
+  lambdas.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.handler?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing handler — required (e.g. index.handler)` });
+    if (!cfg.runtime)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing runtime` });
+    if (!cfg.iam_role_id)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} has no execution role — Lambda cannot be created without an IAM role` });
+    if (cfg.vpc_enabled === "true" && !cfg.subnetId)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} has VPC enabled but no subnet selected` });
+  });
+
+  // ─── DynamoDB hard fails ───────────────────────────────────────────────────
+  dynamo.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.table_name?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a table name` });
+    if (!cfg.hash_key?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a partition key (PK)` });
+    if (cfg.range_key?.trim() && !cfg.range_key_type)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} has a sort key but no sort key type selected` });
+    if (!cfg.point_in_time_recovery || cfg.point_in_time_recovery !== "true")
+      checks.push({ ok: false, warn: true, message: `${n.data.label} has PITR disabled — enable for production tables` });
+  });
+
+  // ─── SQS hard fails ────────────────────────────────────────────────────────
+  sqs.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.queue_name?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a queue name` });
+    if (cfg.fifo === "true" && !cfg.queue_name?.endsWith(".fifo"))
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is a FIFO queue but name doesn't end in ".fifo" — AWS will reject this` });
+    if (!cfg.dlq_enabled || cfg.dlq_enabled !== "true")
+      checks.push({ ok: false, warn: true, message: `${n.data.label} has no Dead Letter Queue — failed messages will be silently dropped` });
+  });
+
+  // ─── Orphan check — exclude intentionally edgeless global services ─────────
+  const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS"];
   nodes.forEach((n) => {
-    if (n.data?.resourceType === "Public") return;
+    if (EDGELESS_TYPES.includes(n.data?.resourceType)) return;
     if (!hasAnyEdge(n.id))
       checks.push({ ok: false, warn: true, message: `${n.data.label} is orphaned (no edges)` });
   });

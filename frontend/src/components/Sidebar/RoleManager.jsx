@@ -180,10 +180,10 @@ export default function RoleManager({ roles, onRolesChange, nodes = [], onAssign
   const [creating, setCreating]   = useState(false);
   const [assigning, setAssigning] = useState(null); // role being assigned
 
-  const iamCapableTypes = Object.entries(RESOURCE_REGISTRY)
-    .filter(([, def]) => def.iamCapable)
-    .map(([type]) => type);
-  const ec2Nodes = nodes.filter((n) => iamCapableTypes.includes(n.data?.resourceType));
+  const IAM_CAPABLE_TYPES = ["EC2", "ECS", "Lambda"];
+  const iamCapableNodes = nodes.filter((n) => IAM_CAPABLE_TYPES.includes(n.data?.resourceType));
+
+  const TYPE_LABEL = { EC2: "EC2", ECS: "ECS", Lambda: "Lambda" };
 
   const handleAssign = (roleId, nodeId, checked) => {
     if (onAssignRole) onAssignRole(nodeId, checked ? roleId : "");
@@ -236,7 +236,7 @@ export default function RoleManager({ roles, onRolesChange, nodes = [], onAssign
       {/* Role list */}
       {roles.length === 0 ? (
         <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "6px 0" }}>
-          No roles defined — create one to assign to EC2 nodes
+          No roles defined — create one to assign to EC2, ECS, or Lambda nodes
         </div>
       ) : (
         roles.map((role) => (
@@ -284,19 +284,20 @@ export default function RoleManager({ roles, onRolesChange, nodes = [], onAssign
             </span>
           </div>
 
-          {/* Assignment panel — EC2 node list */}
+          {/* Assignment panel — EC2 / ECS / Lambda nodes */}
           {assigning?.id === role.id && (
             <div style={{
               margin: "4px 0 8px 0", padding: "8px 10px",
               background: "var(--bg-surface)", borderRadius: 6,
               border: "1px solid var(--border)",
             }}>
-              {ec2Nodes.length === 0 ? (
-                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>No EC2 nodes on canvas</div>
+              {iamCapableNodes.length === 0 ? (
+                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>No EC2, ECS, or Lambda nodes on canvas</div>
               ) : (
-                ec2Nodes.map((node) => {
+                iamCapableNodes.map((node) => {
                   const assigned = node.data?.config?.iam_role_id === role.id;
                   const otherRole = roles.find((r) => r.id === node.data?.config?.iam_role_id && r.id !== role.id);
+                  const typeLabel = node.data?.resourceType;
                   return (
                     <div
                       key={node.id}
@@ -318,6 +319,9 @@ export default function RoleManager({ roles, onRolesChange, nodes = [], onAssign
                       </div>
                       <span style={{ fontSize: 12, color: "var(--text-primary)", flex: 1 }}>
                         {node.data.label}
+                      </span>
+                      <span style={{ fontSize: 10, color: "var(--text-muted)", flexShrink: 0 }}>
+                        {typeLabel}
                       </span>
                       {otherRole && (
                         <span style={{ fontSize: 10, color: "var(--text-muted)" }}>

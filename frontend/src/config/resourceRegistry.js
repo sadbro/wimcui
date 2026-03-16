@@ -82,6 +82,12 @@ export const RESOURCE_REGISTRY = {
     sgCapable:   false,
     iamCapable:  false,
   },
+  S3: {
+    label:        "S3",
+    color:         "#13c2c2",
+    category:      "global",
+    defaultSize: { width: 160, height: 60 },
+  }
 };
 
 /** All registered resource type keys */

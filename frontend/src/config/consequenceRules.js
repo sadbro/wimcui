@@ -623,6 +623,107 @@ export const consequenceRules = [
       })),
   },
 
+  //         s3                        //
+  
+  {
+    id: "s3_public_acl_no_block",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const buckets = byResourceType["S3"] || [];
+      return buckets
+        .filter((b) => {
+          const acl = b.data?.config?.acl || "private";
+          const blocked = b.data?.config?.block_public_access;
+          return acl !== "private" && acl !== "authenticated-read" && blocked !== "true";
+        })
+        .map((b) => ({
+          node: b,
+          message: `${b.data.label} has a public ACL ("${b.data?.config?.acl}") and Block Public Access is disabled — bucket contents may be publicly accessible`,
+        }));
+    },
+  },
+ 
+  {
+    id: "s3_block_public_access_off",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const buckets = byResourceType["S3"] || [];
+      return buckets
+        .filter((b) => b.data?.config?.block_public_access !== "true")
+        .map((b) => ({
+          node: b,
+          message: `${b.data.label} has Block Public Access disabled — AWS best practice is to enable this on all buckets unless explicitly serving public content`,
+        }));
+    },
+  },
+ 
+  {
+    id: "s3_no_encryption",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const buckets = byResourceType["S3"] || [];
+      return buckets
+        .filter((b) => !b.data?.config?.encryption || b.data.config.encryption === "None")
+        .map((b) => ({
+          node: b,
+          message: `${b.data.label} has no server-side encryption — enable SSE-S3 (free) or SSE-KMS for data at rest protection`,
+        }));
+    },
+  },
+ 
+  {
+    id: "s3_no_versioning",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const buckets = byResourceType["S3"] || [];
+      return buckets
+        .filter((b) => b.data?.config?.versioning !== "Enabled")
+        .map((b) => ({
+          node: b,
+          message: `${b.data.label} has versioning disabled — accidental deletes or overwrites are unrecoverable without versioning`,
+        }));
+    },
+  },
+ 
+  {
+    id: "s3_force_destroy_enabled",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const buckets = byResourceType["S3"] || [];
+      return buckets
+        .filter((b) => b.data?.config?.force_destroy === "true")
+        .map((b) => ({
+          node: b,
+          message: `${b.data.label} has force_destroy = true — all objects will be permanently deleted on terraform destroy with no recovery`,
+        }));
+    },
+  },
+ 
+  {
+    id: "s3_public_read_write",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const buckets = byResourceType["S3"] || [];
+      return buckets
+        .filter((b) => b.data?.config?.acl === "public-read-write")
+        .map((b) => ({
+          node: b,
+          message: `${b.data.label} ACL is public-read-write — anyone on the internet can write objects to this bucket`,
+        }));
+    },
+  },
+ 
+  {
+    id: "s3_cost_note",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const buckets = byResourceType["S3"] || [];
+      return buckets.map((b) => ({
+        node: b,
+        message: `${b.data.label} — charged per GB stored, per 1,000 requests, and per GB data transfer out. Versioning multiplies storage cost.`,
+      }));
+    },
+  },
 ];
 
 export const CATEGORY_LABELS = {

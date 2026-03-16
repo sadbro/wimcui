@@ -9,6 +9,7 @@ const MONO = { fontFamily: "'JetBrains Mono', Consolas, monospace" };
 const networkResources = resourcesByCategory("network");
 const computeResources = resourcesByCategory("compute");
 const infraResources   = resourcesByCategory("infra");
+const globalResources  = resourcesByCategory("global");
 
 const ghostBtnStyle = {
   width: "100%", padding: "7px 0",
@@ -62,8 +63,8 @@ function DraggableItem({ type, color, label, onDragStart }) {
 
 function ResourcesTab({ onDragStart }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
-      <div style={{ flex: 1, overflowY: "auto" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
         <SectionLabel label="Network" />
         {networkResources.map((r) => (
           <DraggableItem key={r.type} {...r} onDragStart={onDragStart} />
@@ -76,6 +77,14 @@ function ResourcesTab({ onDragStart }) {
         {infraResources.map((r) => (
           <DraggableItem key={r.type} {...r} onDragStart={onDragStart} />
         ))}
+        {globalResources.length > 0 && (
+          <>
+            <SectionLabel label="Global Services" />
+            {globalResources.map((r) => (
+              <DraggableItem key={r.type} {...r} onDragStart={onDragStart} />
+            ))}
+          </>
+        )}
       </div>
     </div>
   );
@@ -257,7 +266,7 @@ export default function ResourcePanel({
       )}
 
       {/* Tab content */}
-      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         {activeTab === 0 && (
           <ResourcesTab
             onDragStart={onDragStart}

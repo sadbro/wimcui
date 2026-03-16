@@ -24,6 +24,7 @@ export const trafficRules = {
   RouteTable:   null,
   VPC:          null,
   Subnet:       null,
+  S3:           null,
 };
 
 /**

@@ -77,6 +77,7 @@ function TableHeader({ cols }) {
 
 function SummaryTab({ ctx, roles = [] }) {
   const { vpcs, subnets, ec2, rds, lbs, igws, nats, rts, assocEdges, trafficEdges, nodeById } = ctx;
+  const s3 = ctx.byResourceType?.["S3"] || [];
 
   return (
     <div>
@@ -251,6 +252,24 @@ function SummaryTab({ ctx, roles = [] }) {
         })}
       </>}
 
+      {s3.length > 0 && <>
+        <SectionHeader title="S3 Buckets" />
+        <TableHeader cols={[
+          { text: "Name",             width: "140px" },
+          { text: "Versioning",       width: "80px"  },
+          { text: "Encryption",       width: "130px" },
+          { text: "Public Access",    width: "auto"  },
+        ]} />
+        {s3.map((n) => (
+          <Row key={n.id} cols={[
+            { text: n.data.label,                          width: "140px" },
+            { text: n.data.config?.versioning,             width: "80px",  dim: true },
+            { text: n.data.config?.encryption,             width: "130px", dim: true },
+            { text: n.data.config?.block_public_access === "true" ? "blocked" : "⚠ open", width: "auto", dim: n.data.config?.block_public_access === "true" },
+          ]} />
+        ))}
+      </>}
+
       {assocEdges.length > 0 && <>
         <SectionHeader title="Associations" />
         <TableHeader cols={[
@@ -363,6 +382,7 @@ function ConsequencesTab({ ctx }) {
 function buildHclChecks(ctx) {
   const checks = [];
   const { vpcs, subnets, ec2, rds, lbs, igws, nats, rts, assocEdges, anyRtRoutesTo, rtBySubnet, publicSubnets, hasTrafficEdge, hasAnyEdge, nodes, nodeById, roles = [] } = ctx;
+  const s3 = ctx.byResourceType?.["S3"] || [];
 
   // Hard fails — Terraform will not apply
   rts.forEach((rt) => {
@@ -478,6 +498,29 @@ function buildHclChecks(ctx) {
   lbs.forEach((n) => {
     if (!hasTrafficEdge(n.id))
       checks.push({ ok: false, warn: true, message: `${n.data.label} has no traffic connections` });
+  });
+
+  // ─── S3 hard fails ─────────────────────────────────────────────────────────
+  s3.forEach((b) => {
+    const cfg = b.data?.config || {};
+
+    if (!cfg.bucket_name?.trim())
+      checks.push({ ok: false, warn: false, message: `${b.data.label} is missing a bucket name — required for aws_s3_bucket resource` });
+
+    if (cfg.acl === "public-read-write" && cfg.block_public_access !== "true")
+      checks.push({ ok: false, warn: false, message: `${b.data.label} ACL is public-read-write with Block Public Access disabled — this allows anonymous writes to the bucket` });
+
+    // Warn: encryption off
+    if (!cfg.encryption || cfg.encryption === "None")
+      checks.push({ ok: false, warn: true, message: `${b.data.label} has no encryption configured — consider enabling SSE-S3 (no added cost)` });
+
+    // Warn: versioning off
+    if (cfg.versioning !== "Enabled")
+      checks.push({ ok: false, warn: true, message: `${b.data.label} versioning is disabled — object deletions and overwrites are irreversible` });
+
+    // Warn: force_destroy in production
+    if (cfg.force_destroy === "true")
+      checks.push({ ok: false, warn: true, message: `${b.data.label} has force_destroy enabled — all objects will be destroyed on terraform destroy` });
   });
 
   nodes.forEach((n) => {

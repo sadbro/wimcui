@@ -323,6 +323,79 @@ export const resourceFields = {
     },
     ...baseFields,
   ],
+ // ─── Global Services ─────────────────────────────────────────────────────
+ 
+  S3: [
+    {
+      key: "bucket_name",
+      label: "Bucket Name",
+      type: "text",
+      placeholder: "my-unique-bucket-name",
+      required: true,
+      validate: (value) => {
+        if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(value))
+          return "Bucket name must be 3–63 lowercase chars, digits, hyphens, or dots";
+        if (/\.\./.test(value))
+          return "Bucket name cannot contain consecutive dots";
+        if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(value))
+          return "Bucket name must not be formatted as an IP address";
+        return null;
+      },
+    },
+    {
+      key: "versioning",
+      label: "Versioning",
+      type: "select",
+      options: ["Disabled", "Enabled"],
+      required: true,
+    },
+    {
+      key: "encryption",
+      label: "Server-Side Encryption",
+      type: "select",
+      options: ["None", "SSE-S3 (AES-256)", "SSE-KMS"],
+      required: true,
+    },
+    {
+      key: "acl",
+      label: "Canned ACL",
+      type: "select",
+      options: [
+        "private",
+        "public-read",
+        "public-read-write",
+        "authenticated-read",
+      ],
+      required: true,
+    },
+    {
+      key: "block_public_access",
+      label: "Block All Public Access",
+      type: "select",
+      options: ["true", "false"],
+      optionLabels: { true: "Enabled (recommended)", false: "Disabled" },
+      required: true,
+    },
+    {
+      key: "force_destroy",
+      label: "Force Destroy",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: {
+        false: "false — safe, bucket must be empty to delete",
+        true:  "true — deletes all objects on terraform destroy",
+      },
+      required: false,
+    },
+    {
+      key: "lifecycle_rule",
+      label: "Lifecycle Rule (description)",
+      type: "text",
+      placeholder: "e.g. expire objects after 90 days",
+      required: false,
+    },
+    ...baseFields,
+  ],
 };
 
 export const hasConfig = (type) => !!resourceFields[type];

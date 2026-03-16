@@ -66,6 +66,12 @@ export const RESOURCE_REGISTRY = {
     category:    "infra",
     defaultSize: { width: 160, height: 60 },
   },
+  S3: {
+    label:        "S3",
+    color:         "#13c2c2",
+    category:      "global",
+    defaultSize: { width: 160, height: 60 },
+  }
 };
 
 /** All registered resource type keys */

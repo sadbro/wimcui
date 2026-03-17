@@ -461,16 +461,19 @@ export const consequenceRules = [
   {
     id: "orphaned_node",
     category: "smell",
-    check: ({ nodes, edges, publics }) =>
-      nodes
+    check: ({ nodes, edges }) => {
+      // These types are intentionally edgeless — accessed via IAM policies, not network edges
+      const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS"];
+      return nodes
         .filter((n) => {
-          if (n.data?.resourceType === "Public") return false;
+          if (EDGELESS_TYPES.includes(n.data?.resourceType)) return false;
           return !edges.some((e) => e.source === n.id || e.target === n.id);
         })
         .map((n) => ({
           node: n,
           message: `${n.data.label} has no connections — resource will be created but isolated`,
-        })),
+        }));
+    },
   },
 
 
@@ -623,8 +626,282 @@ export const consequenceRules = [
       })),
   },
 
-  //         s3                        //
-  
+  // ─── ECS ───────────────────────────────────────────────────────────────────
+
+  {
+    id: "ecs_no_iam_role",
+    category: "security",
+    check: ({ byResourceType, roleById }) => {
+      const ecs = byResourceType["ECS"] || [];
+      return ecs
+        .filter((n) => {
+          const roleId = n.data?.config?.iam_role_id;
+          return !roleId || !roleById(roleId);
+        })
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has no IAM task role — AWS API calls from the container will fail with AccessDenied`,
+        }));
+    },
+  },
+
+  {
+    id: "ecs_no_lb_target",
+    category: "availability",
+    check: ({ byResourceType, lbs, trafficNeighbors }) => {
+      const ecs = byResourceType["ECS"] || [];
+      return ecs
+        .filter((n) => {
+          const neighbors = trafficNeighbors(n.id);
+          return !neighbors.some((nb) => nb?.data?.resourceType === "LoadBalancer");
+        })
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has no Load Balancer — traffic cannot be distributed across tasks`,
+        }));
+    },
+  },
+
+  {
+    id: "ecs_fargate_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const ecs = byResourceType["ECS"] || [];
+      return ecs
+        .filter((n) => n.data?.config?.launch_type === "FARGATE")
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} uses Fargate — charged per vCPU/GB-hour while tasks are running (~$0.04/vCPU-hr + $0.004/GB-hr)`,
+        }));
+    },
+  },
+
+  {
+    id: "ecs_desired_count_single",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const ecs = byResourceType["ECS"] || [];
+      return ecs
+        .filter((n) => parseInt(n.data?.config?.desired_count, 10) === 1)
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} desired count is 1 — a task failure causes full downtime; set to 2+ for availability`,
+        }));
+    },
+  },
+
+  {
+    id: "ecs_in_public_subnet",
+    category: "security",
+    check: ({ byResourceType, publicSubnets, nodeById }) => {
+      const ecs = byResourceType["ECS"] || [];
+      return ecs
+        .filter((n) => {
+          const subnet = nodeById(n.data?.config?.subnetId);
+          return publicSubnets.some((s) => s.id === subnet?.id);
+        })
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} is in a public subnet — place ECS tasks in private subnets and route traffic via a Load Balancer`,
+        }));
+    },
+  },
+
+  // ─── Lambda ────────────────────────────────────────────────────────────────
+
+  {
+    id: "lambda_no_iam_role",
+    category: "security",
+    check: ({ byResourceType, roleById }) => {
+      const lambdas = byResourceType["Lambda"] || [];
+      return lambdas
+        .filter((n) => {
+          const roleId = n.data?.config?.iam_role_id;
+          return !roleId || !roleById(roleId);
+        })
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has no execution role — Lambda cannot run without an IAM role; all invocations will fail`,
+        }));
+    },
+  },
+
+  {
+    id: "lambda_high_timeout",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const lambdas = byResourceType["Lambda"] || [];
+      return lambdas
+        .filter((n) => parseInt(n.data?.config?.timeout, 10) > 60)
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} timeout is over 60s — long timeouts increase cost and indicate the function may be doing too much`,
+        }));
+    },
+  },
+
+  {
+    id: "lambda_high_memory",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const lambdas = byResourceType["Lambda"] || [];
+      return lambdas
+        .filter((n) => parseInt(n.data?.config?.memory_size, 10) >= 2048)
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} memory is ${n.data.config.memory_size}MB — profile with Lambda Power Tuning before setting high memory`,
+        }));
+    },
+  },
+
+  {
+    id: "lambda_vpc_cold_start",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const lambdas = byResourceType["Lambda"] || [];
+      return lambdas
+        .filter((n) => n.data?.config?.vpc_enabled === "true")
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} is VPC-attached — cold starts are significantly longer; only use VPC if accessing private RDS or ElastiCache`,
+        }));
+    },
+  },
+
+  {
+    id: "lambda_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const lambdas = byResourceType["Lambda"] || [];
+      return lambdas.map((n) => ({
+        node: n,
+        message: `${n.data.label} — first 1M requests/month free, then $0.20/1M requests + $0.0000166667/GB-second`,
+      }));
+    },
+  },
+
+  // ─── DynamoDB ──────────────────────────────────────────────────────────────
+
+  {
+    id: "dynamodb_no_pitr",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const tables = byResourceType["DynamoDB"] || [];
+      return tables
+        .filter((n) => n.data?.config?.point_in_time_recovery !== "true")
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has Point-in-Time Recovery disabled — accidental deletes cannot be recovered without PITR`,
+        }));
+    },
+  },
+
+  {
+    id: "dynamodb_no_sort_key",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const tables = byResourceType["DynamoDB"] || [];
+      return tables
+        .filter((n) => !n.data?.config?.range_key?.trim())
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has no sort key — single-key tables limit query flexibility; consider adding a sort key for range queries`,
+        }));
+    },
+  },
+
+  {
+    id: "dynamodb_provisioned_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const tables = byResourceType["DynamoDB"] || [];
+      return tables
+        .filter((n) => n.data?.config?.billing_mode === "PROVISIONED")
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} uses PROVISIONED billing — you pay for capacity whether used or not; prefer PAY_PER_REQUEST for variable workloads`,
+        }));
+    },
+  },
+
+  {
+    id: "dynamodb_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const tables = byResourceType["DynamoDB"] || [];
+      return tables.map((n) => ({
+        node: n,
+        message: `${n.data.label} — on-demand: ~$1.25/million writes, $0.25/million reads + $0.25/GB-month storage`,
+      }));
+    },
+  },
+
+  // ─── SQS ───────────────────────────────────────────────────────────────────
+
+  {
+    id: "sqs_no_dlq",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const queues = byResourceType["SQS"] || [];
+      return queues
+        .filter((n) => n.data?.config?.dlq_enabled !== "true")
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has no Dead Letter Queue — failed messages will be lost after max receive attempts`,
+        }));
+    },
+  },
+
+  {
+    id: "sqs_fifo_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const queues = byResourceType["SQS"] || [];
+      return queues
+        .filter((n) => {
+          const name = n.data?.config?.queue_name || "";
+          return n.data?.config?.fifo === "true" && !name.endsWith(".fifo");
+        })
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} is a FIFO queue but the name doesn't end in ".fifo" — AWS will reject it at apply time`,
+        }));
+    },
+  },
+
+  {
+    id: "sqs_no_consumers",
+    category: "connectivity",
+    check: ({ byResourceType, trafficNeighbors }) => {
+      const queues = byResourceType["SQS"] || [];
+      return queues
+        .filter((n) => {
+          const neighbors = trafficNeighbors(n.id);
+          return !neighbors.some((nb) =>
+            ["EC2", "ECS", "Lambda"].includes(nb?.data?.resourceType)
+          );
+        })
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has no consumers (EC2/ECS/Lambda) — messages will accumulate with no processing`,
+        }));
+    },
+  },
+
+  {
+    id: "sqs_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const queues = byResourceType["SQS"] || [];
+      return queues.map((n) => ({
+        node: n,
+        message: `${n.data.label} — first 1M requests/month free; standard ~$0.40/million, FIFO ~$0.50/million thereafter`,
+      }));
+    },
+  },
+
+  // ─── S3 ────────────────────────────────────────────────────────────────────
+
   {
     id: "s3_public_acl_no_block",
     category: "security",
@@ -642,7 +919,7 @@ export const consequenceRules = [
         }));
     },
   },
- 
+
   {
     id: "s3_block_public_access_off",
     category: "security",
@@ -656,7 +933,7 @@ export const consequenceRules = [
         }));
     },
   },
- 
+
   {
     id: "s3_no_encryption",
     category: "security",
@@ -670,7 +947,7 @@ export const consequenceRules = [
         }));
     },
   },
- 
+
   {
     id: "s3_no_versioning",
     category: "availability",
@@ -684,7 +961,7 @@ export const consequenceRules = [
         }));
     },
   },
- 
+
   {
     id: "s3_force_destroy_enabled",
     category: "smell",
@@ -698,7 +975,7 @@ export const consequenceRules = [
         }));
     },
   },
- 
+
   {
     id: "s3_public_read_write",
     category: "security",
@@ -712,7 +989,7 @@ export const consequenceRules = [
         }));
     },
   },
- 
+
   {
     id: "s3_cost_note",
     category: "cost",
@@ -724,6 +1001,7 @@ export const consequenceRules = [
       }));
     },
   },
+
 ];
 
 export const CATEGORY_LABELS = {

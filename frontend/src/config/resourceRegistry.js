@@ -5,7 +5,7 @@
  *   label       — display name in sidebar and canvas
  *   color       — border color in ResourceNode + sidebar hover
  *   category    — groups resources in ResourcePanel sidebar
- *                 "network" | "compute" | "infra"
+ *                 "network" | "compute" | "infra" | "global"
  *   defaultSize — initial node dimensions on canvas drop
  *
  * To add a new resource:
@@ -15,6 +15,12 @@
  *   4. Add byType derivation is automatic via canvasContext.js
  *   5. Add section to ReviewPanel.jsx SummaryTab
  *   6. Add consequence rules to consequenceRules.js if needed
+ *
+ * Categories:
+ *   "network" — VPC-scoped networking (VPC, Subnet)
+ *   "compute" — compute and data resources (EC2, RDS, LB)
+ *   "infra"   — VPC infrastructure (IGW, NAT, RouteTable)
+ *   "global"  — regional/global services not bound to a VPC (S3, IAM, etc.)
  */
 
 export const RESOURCE_REGISTRY = {
@@ -58,6 +64,12 @@ export const RESOURCE_REGISTRY = {
     sgCapable:   true,  // ALB only — NLB guard in consequenceRules
     iamCapable:  false,
   },
+  ECS: {
+    label:       "ECS Service",
+    color:       "#eb2f96",
+    category:    "compute",
+    defaultSize: { width: 160, height: 60 },
+  },
   IGW: {
     label:       "Internet Gateway",
     color:       "#52c41a",
@@ -82,12 +94,32 @@ export const RESOURCE_REGISTRY = {
     sgCapable:   false,
     iamCapable:  false,
   },
+
+  // ─── Global Services ────────────────────────────────────────────────────────
   S3: {
-    label:        "S3",
-    color:         "#13c2c2",
-    category:      "global",
+    label:       "S3 Bucket",
+    color:       "#13c2c2",
+    category:    "global",
     defaultSize: { width: 160, height: 60 },
-  }
+  },
+  Lambda: {
+    label:       "Lambda",
+    color:       "#ff9900",
+    category:    "global",
+    defaultSize: { width: 160, height: 60 },
+  },
+  DynamoDB: {
+    label:       "DynamoDB",
+    color:       "#4d9ffe",
+    category:    "global",
+    defaultSize: { width: 160, height: 60 },
+  },
+  SQS: {
+    label:       "SQS Queue",
+    color:       "#ff4d4f",
+    category:    "global",
+    defaultSize: { width: 160, height: 60 },
+  },
 };
 
 /** All registered resource type keys */

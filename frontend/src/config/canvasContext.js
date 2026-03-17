@@ -29,16 +29,26 @@ export function buildContext(nodes, edges, roles = [], securityGroups = []) {
   const rts     = byResourceType["RouteTable"];
   const publics = byType("Public"); // Public is not in registry (deprecated node type)
 
-  // IAM helpers
+  // IAM helpers — covers all IAM-capable compute types
+  const IAM_CAPABLE_TYPES = ["EC2", "ECS", "Lambda"];
+  const iamCapableNodes = nodes.filter((n) => IAM_CAPABLE_TYPES.includes(n.data?.resourceType));
+
   const roleById     = (id) => roles.find((r) => r.id === id);
   const rolePolicies = (roleId) => roleById(roleId)?.policies || [];
-  const ec2WithRole    = () => ec2.filter((n) => n.data?.config?.iam_role_id);
-  const ec2WithoutRole = () => ec2.filter((n) => {
+  const nodesWithRole    = () => iamCapableNodes.filter((n) => n.data?.config?.iam_role_id);
+  const nodesWithoutRole = () => iamCapableNodes.filter((n) => {
     const roleId = n.data?.config?.iam_role_id;
-    if (!roleId) return true;        // no role set
-    return !roleById(roleId);        // role ID set but role doesn't exist — dangling
+    if (!roleId) return true;
+    return !roleById(roleId);
   });
-  const assignedRoleIds = new Set(ec2.map((n) => n.data?.config?.iam_role_id).filter(Boolean));
+  // Keep ec2WithoutRole alias so existing consequence rules don't break
+  const ec2WithRole    = () => byResourceType["EC2"].filter((n) => n.data?.config?.iam_role_id);
+  const ec2WithoutRole = () => byResourceType["EC2"].filter((n) => {
+    const roleId = n.data?.config?.iam_role_id;
+    if (!roleId) return true;
+    return !roleById(roleId);
+  });
+  const assignedRoleIds = new Set(iamCapableNodes.map((n) => n.data?.config?.iam_role_id).filter(Boolean));
   const unassignedRoles = roles.filter((r) => !assignedRoleIds.has(r.id));
 
   const structuralEdges  = edges.filter((e) => e.type === "structural");
@@ -198,6 +208,9 @@ export function buildContext(nodes, edges, roles = [], securityGroups = []) {
     roles,
     roleById,
     rolePolicies,
+    iamCapableNodes,
+    nodesWithRole,
+    nodesWithoutRole,
     ec2WithRole,
     ec2WithoutRole,
     unassignedRoles,

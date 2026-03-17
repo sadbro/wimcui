@@ -339,8 +339,9 @@ export const resourceFields = {
     },
     ...baseFields,
   ],
- // ─── Global Services ─────────────────────────────────────────────────────
- 
+
+  // ─── Global Services ─────────────────────────────────────────────────────
+
   S3: [
     {
       key: "bucket_name",
@@ -408,6 +409,272 @@ export const resourceFields = {
       label: "Lifecycle Rule (description)",
       type: "text",
       placeholder: "e.g. expire objects after 90 days",
+      required: false,
+    },
+    ...baseFields,
+  ],
+
+  // ─── ECS ─────────────────────────────────────────────────────────────────
+  ECS: [
+    subnetParent,
+    {
+      key: "iam_role_id",
+      label: "Task IAM Role",
+      type: "iam-role-select",
+    },
+    {
+      key: "launch_type",
+      label: "Launch Type",
+      type: "select",
+      options: ["FARGATE", "EC2"],
+      required: true,
+    },
+    {
+      key: "cpu",
+      label: "CPU Units",
+      type: "select",
+      options: ["256", "512", "1024", "2048", "4096"],
+      optionLabels: {
+        "256":  "256 (.25 vCPU)",
+        "512":  "512 (.5 vCPU)",
+        "1024": "1024 (1 vCPU)",
+        "2048": "2048 (2 vCPU)",
+        "4096": "4096 (4 vCPU)",
+      },
+      required: true,
+    },
+    {
+      key: "memory",
+      label: "Memory (MB)",
+      type: "select",
+      options: ["512", "1024", "2048", "4096", "8192"],
+      required: true,
+    },
+    {
+      key: "image",
+      label: "Container Image",
+      type: "text",
+      placeholder: "nginx:latest or 123456789.dkr.ecr.us-east-1.amazonaws.com/app:v1",
+      required: true,
+    },
+    {
+      key: "desired_count",
+      label: "Desired Count",
+      type: "text",
+      placeholder: "1",
+      required: true,
+      validate: (value) => {
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 0) return "Desired count must be a non-negative integer";
+        return null;
+      },
+    },
+    {
+      key: "container_port",
+      label: "Container Port",
+      type: "text",
+      placeholder: "80",
+      required: false,
+    },
+    ...baseFields,
+  ],
+
+  // ─── Lambda ───────────────────────────────────────────────────────────────
+  Lambda: [
+    {
+      key: "iam_role_id",
+      label: "Execution Role",
+      type: "iam-role-select",
+    },
+    {
+      key: "runtime",
+      label: "Runtime",
+      type: "select",
+      options: [
+        "nodejs20.x", "nodejs18.x",
+        "python3.12", "python3.11", "python3.10",
+        "java21", "java17",
+        "dotnet8",
+        "go1.x",
+        "provided.al2023",
+      ],
+      required: true,
+    },
+    {
+      key: "handler",
+      label: "Handler",
+      type: "text",
+      placeholder: "index.handler",
+      required: true,
+    },
+    {
+      key: "memory_size",
+      label: "Memory (MB)",
+      type: "select",
+      options: ["128", "256", "512", "1024", "2048", "3008"],
+      required: true,
+    },
+    {
+      key: "timeout",
+      label: "Timeout (seconds)",
+      type: "text",
+      placeholder: "30",
+      required: true,
+      validate: (value) => {
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 1 || n > 900) return "Timeout must be between 1 and 900 seconds";
+        return null;
+      },
+    },
+    {
+      key: "vpc_enabled",
+      label: "VPC Config",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { false: "No VPC (default)", true: "Deploy inside VPC" },
+      required: false,
+    },
+    {
+      key: "subnetId",
+      label: "Subnet (if VPC enabled)",
+      type: "parent-select",
+      parentType: "Subnet",
+      required: false,
+      visibleWhen: (form) => form.vpc_enabled === "true",
+    },
+    {
+      key: "environment_vars",
+      label: "Environment Variables",
+      type: "text",
+      placeholder: "KEY=value,KEY2=value2",
+      required: false,
+    },
+    ...baseFields,
+  ],
+
+  // ─── DynamoDB ─────────────────────────────────────────────────────────────
+  DynamoDB: [
+    {
+      key: "table_name",
+      label: "Table Name",
+      type: "text",
+      placeholder: "my-table",
+      required: true,
+      validate: (value) => {
+        if (!/^[a-zA-Z0-9._-]{3,255}$/.test(value))
+          return "Table name must be 3–255 chars: letters, numbers, underscores, hyphens, dots";
+        return null;
+      },
+    },
+    {
+      key: "billing_mode",
+      label: "Billing Mode",
+      type: "select",
+      options: ["PAY_PER_REQUEST", "PROVISIONED"],
+      optionLabels: {
+        PAY_PER_REQUEST: "On-demand (PAY_PER_REQUEST)",
+        PROVISIONED:     "Provisioned capacity",
+      },
+      required: true,
+    },
+    {
+      key: "hash_key",
+      label: "Partition Key (PK) name",
+      type: "text",
+      placeholder: "id",
+      required: true,
+    },
+    {
+      key: "hash_key_type",
+      label: "Partition Key type",
+      type: "select",
+      options: ["S", "N", "B"],
+      optionLabels: { S: "S — String", N: "N — Number", B: "B — Binary" },
+      required: true,
+    },
+    {
+      key: "range_key",
+      label: "Sort Key (SK) name — optional",
+      type: "text",
+      placeholder: "createdAt",
+      required: false,
+    },
+    {
+      key: "range_key_type",
+      label: "Sort Key type",
+      type: "select",
+      options: ["S", "N", "B"],
+      optionLabels: { S: "S — String", N: "N — Number", B: "B — Binary" },
+      visibleWhen: (form) => !!form.range_key?.trim(),
+      required: false,
+    },
+    {
+      key: "point_in_time_recovery",
+      label: "Point-in-Time Recovery",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { true: "Enabled (recommended)", false: "Disabled" },
+      required: false,
+    },
+    ...baseFields,
+  ],
+
+  // ─── SQS ─────────────────────────────────────────────────────────────────
+  SQS: [
+    {
+      key: "queue_name",
+      label: "Queue Name",
+      type: "text",
+      placeholder: "my-queue",
+      required: true,
+      validate: (value) => {
+        if (!/^[a-zA-Z0-9_-]{1,80}$/.test(value))
+          return "Queue name must be 1–80 chars: letters, numbers, underscores, hyphens";
+        return null;
+      },
+    },
+    {
+      key: "fifo",
+      label: "Queue Type",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { false: "Standard queue", true: "FIFO queue (append .fifo to name)" },
+      required: true,
+    },
+    {
+      key: "visibility_timeout",
+      label: "Visibility Timeout (seconds)",
+      type: "text",
+      placeholder: "30",
+      required: false,
+      validate: (value) => {
+        if (!value) return null;
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 0 || n > 43200) return "Visibility timeout must be 0–43200 seconds";
+        return null;
+      },
+    },
+    {
+      key: "message_retention",
+      label: "Message Retention (seconds)",
+      type: "select",
+      options: ["60", "300", "3600", "86400", "345600", "1209600"],
+      optionLabels: {
+        "60":      "1 minute",
+        "300":     "5 minutes",
+        "3600":    "1 hour",
+        "86400":   "1 day",
+        "345600":  "4 days (default)",
+        "1209600": "14 days (max)",
+      },
+      required: false,
+    },
+    {
+      key: "dlq_enabled",
+      label: "Dead Letter Queue",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { false: "No DLQ", true: "Enable DLQ (define separately)" },
       required: false,
     },
     ...baseFields,

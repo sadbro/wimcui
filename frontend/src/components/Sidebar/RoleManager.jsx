@@ -180,8 +180,10 @@ export default function RoleManager({ roles, onRolesChange, nodes = [], onAssign
   const [creating, setCreating]   = useState(false);
   const [assigning, setAssigning] = useState(null); // role being assigned
 
-  const IAM_CAPABLE_TYPES = ["EC2", "ECS", "Lambda"];
-  const iamCapableNodes = nodes.filter((n) => IAM_CAPABLE_TYPES.includes(n.data?.resourceType));
+  // IAM-capable nodes driven by registry — matches canvasContext derivation exactly
+  const iamCapableNodes = nodes.filter((n) =>
+    RESOURCE_REGISTRY[n.data?.resourceType]?.iamCapable === true
+  );
 
   const TYPE_LABEL = { EC2: "EC2", ECS: "ECS", Lambda: "Lambda" };
 

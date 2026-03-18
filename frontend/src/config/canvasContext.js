@@ -1,4 +1,4 @@
-import { RESOURCE_TYPES } from "./resourceRegistry";
+import { RESOURCE_TYPES, RESOURCE_REGISTRY } from "./resourceRegistry";
 
 /**
  * Builds a derived context object from raw canvas nodes and edges.
@@ -30,8 +30,10 @@ export function buildContext(nodes, edges, roles = [], securityGroups = []) {
   const publics = byType("Public"); // Public is not in registry (deprecated node type)
 
   // IAM helpers — covers all IAM-capable compute types
-  const IAM_CAPABLE_TYPES = ["EC2", "ECS", "Lambda"];
-  const iamCapableNodes = nodes.filter((n) => IAM_CAPABLE_TYPES.includes(n.data?.resourceType));
+  // IAM-capable types driven by registry — no manual list needed
+  const iamCapableNodes = nodes.filter((n) =>
+    RESOURCE_REGISTRY[n.data?.resourceType]?.iamCapable === true
+  );
 
   const roleById     = (id) => roles.find((r) => r.id === id);
   const rolePolicies = (roleId) => roleById(roleId)?.policies || [];
@@ -109,7 +111,10 @@ export function buildContext(nodes, edges, roles = [], securityGroups = []) {
   const sgById = (id) => securityGroups.find((s) => s.id === id);
 
   // Nodes that have at least one SG assigned (sg_ids non-empty)
-  const sgCapableNodes = [...ec2, ...rds, ...lbs];
+  // SG-capable nodes driven by registry — automatically includes ECS, Lambda (VPC) etc.
+  const sgCapableNodes = nodes.filter((n) =>
+    RESOURCE_REGISTRY[n.data?.resourceType]?.sgCapable === true
+  );
   const nodesWithSG    = sgCapableNodes.filter((n) => (n.data?.config?.sg_ids || []).length > 0);
   const nodesWithoutSG = sgCapableNodes.filter((n) => (n.data?.config?.sg_ids || []).length === 0);
 

@@ -69,6 +69,8 @@ export const RESOURCE_REGISTRY = {
     color:       "#eb2f96",
     category:    "compute",
     defaultSize: { width: 160, height: 60 },
+    sgCapable:   true,
+    iamCapable:  true,
   },
   IGW: {
     label:       "Internet Gateway",
@@ -101,24 +103,32 @@ export const RESOURCE_REGISTRY = {
     color:       "#13c2c2",
     category:    "global",
     defaultSize: { width: 160, height: 60 },
+    sgCapable:   false,
+    iamCapable:  false,
   },
   Lambda: {
     label:       "Lambda",
     color:       "#ff9900",
     category:    "global",
     defaultSize: { width: 160, height: 60 },
+    sgCapable:   true,  // VPC Lambda only — guard in consequenceRules
+    iamCapable:  true,
   },
   DynamoDB: {
     label:       "DynamoDB",
     color:       "#4d9ffe",
     category:    "global",
     defaultSize: { width: 160, height: 60 },
+    sgCapable:   false,
+    iamCapable:  false,
   },
   SQS: {
     label:       "SQS Queue",
     color:       "#ff4d4f",
     category:    "global",
     defaultSize: { width: 160, height: 60 },
+    sgCapable:   false,
+    iamCapable:  false,
   },
 };
 

@@ -463,7 +463,7 @@ export const consequenceRules = [
     category: "smell",
     check: ({ nodes, edges }) => {
       // These types are intentionally edgeless — accessed via IAM policies, not network edges
-      const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS"];
+      const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "Lambda"];
       return nodes
         .filter((n) => {
           if (EDGELESS_TYPES.includes(n.data?.resourceType)) return false;

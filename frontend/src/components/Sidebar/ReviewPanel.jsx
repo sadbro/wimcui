@@ -75,11 +75,17 @@ function TableHeader({ cols }) {
   );
 }
 
-function SummaryTab({ ctx, roles = [] }) {
-  const { vpcs, subnets, ec2, rds, lbs, igws, nats, rts, assocEdges, trafficEdges, nodeById } = ctx;
+function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
+  const { vpcs, subnets, ec2, rds, lbs, igws, nats, rts, assocEdges, trafficEdges, nodeById, sgById } = ctx;
   const s3       = ctx.byResourceType?.["S3"]       || [];
   const ecs      = ctx.byResourceType?.["ECS"]      || [];
   const lambdas  = ctx.byResourceType?.["Lambda"]   || [];
+
+  const sgNamesForNode = (n) => {
+    const ids = n.data?.config?.sg_ids || [];
+    if (ids.length === 0) return "—";
+    return ids.map((id) => sgById?.(id)?.name || "?").join(", ");
+  };
   const dynamo   = ctx.byResourceType?.["DynamoDB"] || [];
   const sqs      = ctx.byResourceType?.["SQS"]      || [];
 

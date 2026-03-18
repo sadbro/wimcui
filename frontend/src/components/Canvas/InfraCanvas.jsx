@@ -201,13 +201,23 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
     // Check if this is a valid association connection (e.g. RT ↔ Subnet)
     const associationError = validateAssociationConnection(sourceType, targetType);
     if (!associationError) {
+      // RT → IGW/NAT are route edges — auto-generated from RT config, not manually drawable
+      const isRouteEdge = sourceType === "RouteTable" &&
+        (targetType === "IGW" || targetType === "NATGateway");
+      if (isRouteEdge) {
+        showToastRef.current(
+          "RT → IGW/NAT routes are created automatically from Route Table config. Add a route entry in the RT config modal.",
+          true
+        );
+        return;
+      }
       // Valid association — create it directly, no modal needed
       setEdges((eds) => eds.concat({
         id: `e_assoc_${params.source}_${params.target}_${Date.now()}`,
         source: params.source,
         target: params.target,
         type: "association",
-        data: {},
+        data: { label: "assoc" },
       }));
       return;
     }
@@ -262,8 +272,8 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
   }, []);
 
   const onEdgeClick = useCallback((event, edge) => {
-    if (edge.type === "structural") return; // structural edges are not editable
-    if (edge.id.startsWith("e_route_")) return; // route edges are auto-generated, not editable
+    if (edge.type === "structural")  return; // structural edges are not editable
+    if (edge.type === "association") return; // association edges are not editable
     setEditingEdge(edge);
   }, []);
 
@@ -459,7 +469,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
   }, []);
 
   const onEdgeDoubleClick = useCallback((event, edge) => {
-    if (edge.type !== "traffic") return;
+    if (edge.type !== "traffic") return; // only traffic edges are configurable
     setEditingEdge(edge);
   }, []);
 

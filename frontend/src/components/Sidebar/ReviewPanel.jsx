@@ -39,7 +39,7 @@ function Row({ cols }) {
         <span key={i} title={c.text ?? ""} style={{
           ...MONO, fontSize: 12,
           color: c.dim ? "var(--text-muted)" : "var(--text-primary)",
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
         }}>
           {c.text ?? "—"}
         </span>
@@ -65,8 +65,6 @@ function TableHeader({ cols }) {
           textTransform: "uppercase",
           letterSpacing: 0.8,
           whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
         }}>
           {c.text}
         </span>
@@ -77,20 +75,23 @@ function TableHeader({ cols }) {
 
 function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
   const { vpcs, subnets, ec2, rds, lbs, igws, nats, rts, assocEdges, trafficEdges, nodeById, sgById } = ctx;
-  const s3       = ctx.byResourceType?.["S3"]       || [];
-  const ecs      = ctx.byResourceType?.["ECS"]      || [];
-  const lambdas  = ctx.byResourceType?.["Lambda"]   || [];
 
   const sgNamesForNode = (n) => {
     const ids = n.data?.config?.sg_ids || [];
     if (ids.length === 0) return "—";
     return ids.map((id) => sgById?.(id)?.name || "?").join(", ");
   };
+  const s3       = ctx.byResourceType?.["S3"]       || [];
+  const ecs      = ctx.byResourceType?.["ECS"]      || [];
+  const lambdas  = ctx.byResourceType?.["Lambda"]   || [];
   const dynamo   = ctx.byResourceType?.["DynamoDB"] || [];
   const sqs      = ctx.byResourceType?.["SQS"]      || [];
+  const sns      = ctx.byResourceType?.["SNS"]      || [];
+  const evb      = ctx.byResourceType?.["EventBridge"]    || [];
+  const secrets  = ctx.byResourceType?.["SecretsManager"] || [];
 
   return (
-    <div>
+    <div style={{ minWidth: 520, overflowX: "auto" }}>
       {vpcs.length > 0 && <>
         <SectionHeader title="VPCs" />
         <TableHeader cols={[{ text: "Name", width: "180px" }, { text: "CIDR", width: "auto" }]} />
@@ -288,8 +289,8 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
       {rts.length > 0 && <>
         <SectionHeader title="Route Tables" />
         <TableHeader cols={[
-          { text: "Name",   width: "140px" },
-          { text: "Routes", width: "70px"  },
+          { text: "Name",   width: "180px" },
+          { text: "Routes", width: "80px"  },
           { text: "VPC",    width: "auto"  },
         ]} />
         {rts.map((n) => {
@@ -297,8 +298,8 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
           const vpc = nodeById(n.data.config?.vpcId);
           return (
             <Row key={n.id} cols={[
-              { text: n.data.label,                                               width: "140px" },
-              { text: `${routes.length} route${routes.length !== 1 ? "s" : ""}`, width: "70px", dim: true },
+              { text: n.data.label,                                               width: "180px" },
+              { text: `${routes.length} route${routes.length !== 1 ? "s" : ""}`, width: "80px", dim: true },
               { text: vpc?.data?.label,                                           width: "auto",  dim: true },
             ]} />
           );
@@ -397,6 +398,52 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
         ))}
       </>}
 
+      {sns.length > 0 && <>
+        <SectionHeader title="SNS Topics" />
+        <TableHeader cols={[
+          { text: "Name",       width: "160px" },
+          { text: "Type",       width: "80px"  },
+          { text: "Encryption", width: "auto"  },
+        ]} />
+        {sns.map((n) => (
+          <Row key={n.id} cols={[
+            { text: n.data.label,                                               width: "160px" },
+            { text: n.data.config?.fifo === "true" ? "FIFO" : "Standard",      width: "80px",  dim: true },
+            { text: n.data.config?.encryption === "true" ? "SSE-KMS" : "⚠ none", width: "auto", dim: n.data.config?.encryption === "true" },
+          ]} />
+        ))}
+      </>}
+
+      {evb.length > 0 && <>
+        <SectionHeader title="EventBridge Buses" />
+        <TableHeader cols={[
+          { text: "Name",    width: "160px" },
+          { text: "Archive", width: "auto"  },
+        ]} />
+        {evb.map((n) => (
+          <Row key={n.id} cols={[
+            { text: n.data.label,                                                     width: "160px" },
+            { text: n.data.config?.archive_enabled === "true" ? "enabled" : "⚠ none", width: "auto", dim: n.data.config?.archive_enabled === "true" },
+          ]} />
+        ))}
+      </>}
+
+      {secrets.length > 0 && <>
+        <SectionHeader title="Secrets Manager" />
+        <TableHeader cols={[
+          { text: "Name",     width: "160px" },
+          { text: "Rotation", width: "80px"  },
+          { text: "KMS Key",  width: "auto"  },
+        ]} />
+        {secrets.map((n) => (
+          <Row key={n.id} cols={[
+            { text: n.data.label,                                                          width: "160px" },
+            { text: n.data.config?.rotation_enabled === "true" ? "enabled" : "⚠ off",    width: "80px",  dim: n.data.config?.rotation_enabled === "true" },
+            { text: n.data.config?.kms_key?.trim() || "⚠ default",                        width: "auto",  dim: !!n.data.config?.kms_key?.trim() },
+          ]} />
+        ))}
+      </>}
+
       {assocEdges.length > 0 && <>
         <SectionHeader title="Associations" />
         <TableHeader cols={[
@@ -420,9 +467,9 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
       {trafficEdges.length > 0 && <>
         <SectionHeader title="Traffic" />
         <TableHeader cols={[
-          { text: "Source", width: "120px" },
-          { text: "",       width: "30px"  },
-          { text: "Target", width: "110px" },
+          { text: "Source", width: "160px" },
+          { text: "",       width: "36px"  },
+          { text: "Target", width: "160px" },
           { text: "Rules",  width: "auto"  },
         ]} />
         {trafficEdges.map((e) => {
@@ -432,9 +479,9 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
           const eg  = e.data?.egress?.length  || 0;
           return (
             <Row key={e.id} cols={[
-              { text: src?.data?.label,    width: "120px" },
-              { text: "<->",               width: "30px",  dim: true },
-              { text: tgt?.data?.label,    width: "110px" },
+              { text: src?.data?.label,    width: "160px" },
+              { text: "<->",               width: "36px",  dim: true },
+              { text: tgt?.data?.label,    width: "160px" },
               { text: `${ing}in ${eg}out`, width: "auto",  dim: true },
             ]} />
           );
@@ -514,6 +561,9 @@ function buildHclChecks(ctx) {
   const lambdas = ctx.byResourceType?.["Lambda"]   || [];
   const dynamo  = ctx.byResourceType?.["DynamoDB"] || [];
   const sqs     = ctx.byResourceType?.["SQS"]      || [];
+  const sns     = ctx.byResourceType?.["SNS"]      || [];
+  const evb     = ctx.byResourceType?.["EventBridge"]    || [];
+  const secrets = ctx.byResourceType?.["SecretsManager"] || [];
 
   // Hard fails — Terraform will not apply
   rts.forEach((rt) => {
@@ -706,8 +756,31 @@ function buildHclChecks(ctx) {
       checks.push({ ok: false, warn: true, message: `${n.data.label} has no Dead Letter Queue — failed messages will be silently dropped` });
   });
 
+  // ─── SNS hard fails ────────────────────────────────────────────────────────
+  sns.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.topic_name?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a topic name` });
+    if (cfg.fifo === "true" && !cfg.topic_name?.endsWith(".fifo"))
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is a FIFO topic but name doesn't end in ".fifo" — AWS will reject this` });
+  });
+
+  // ─── EventBridge hard fails ─────────────────────────────────────────────
+  evb.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.bus_name?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a bus name` });
+  });
+
+  // ─── Secrets Manager hard fails ─────────────────────────────────────────
+  secrets.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.secret_name?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a secret name` });
+  });
+
   // ─── Orphan check — exclude intentionally edgeless global services ─────────
-  const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS"];
+  const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "SNS", "EventBridge", "SecretsManager"];
   nodes.forEach((n) => {
     if (EDGELESS_TYPES.includes(n.data?.resourceType)) return;
     if (!hasAnyEdge(n.id))

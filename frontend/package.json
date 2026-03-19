@@ -11,8 +11,10 @@
   },
   "dependencies": {
     "@reactflow/node-resizer": "^2.2.14",
+    "aws-icons": "^3.2.0",
     "axios": "^1.13.6",
     "react": "^19.2.0",
+    "react-aws-icons": "^1.2.1",
     "react-dom": "^19.2.0",
     "reactflow": "^11.11.4"
   },

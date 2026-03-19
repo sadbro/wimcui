@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { AWS_REGIONS } from "../../config/awsRegions";
 import RoleManager from "./RoleManager";
 import { resourcesByCategory } from "../../config/resourceRegistry";
+import { getResourceIcon } from "../../config/resourceIcons";
 import SGManager from "./SGManager";
 
 const MONO = { fontFamily: "'JetBrains Mono', Consolas, monospace" };
@@ -39,24 +40,75 @@ function SectionLabel({ label }) {
   );
 }
 
-function DraggableItem({ type, color, label, onDragStart }) {
+function ResourceTile({ type, color, label, onDragStart }) {
   const [hovered, setHovered] = useState(false);
+  const IconComponent = getResourceIcon(type);
+
   return (
     <div
       onDragStart={(e) => onDragStart(e, type)}
       draggable
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      title={label || type}
       style={{
-        padding: "7px 10px", marginBottom: 4,
-        background: hovered ? "var(--bg-hover)" : "var(--bg-elevated)",
-        border: `1px solid ${hovered ? color : "var(--border)"}`,
-        cursor: "grab", borderRadius: 6,
-        fontSize: 12, color: color,
-        transition: "border-color 0.15s, background 0.15s",
+        display: "flex", flexDirection: "column",
+        alignItems: "center", gap: 5,
+        cursor: "grab", userSelect: "none",
+        transition: "transform 0.15s",
+        transform: hovered ? "translateY(-2px)" : "none",
       }}
     >
-      {label || type}
+      {/* Icon tile — transparent body, colored border only */}
+      <div style={{
+        width: 52, height: 52,
+        borderRadius: 10,
+        background: "transparent",
+        border: `2px solid ${hovered ? color : `${color}88`}`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        transition: "border-color 0.15s, box-shadow 0.15s",
+        flexShrink: 0,
+        boxShadow: hovered ? `0 0 8px ${color}66` : "none",
+      }}>
+        {IconComponent ? (
+          <IconComponent size={30} />
+        ) : (
+          <span style={{
+            fontSize: 18, color: color,
+            fontWeight: 700, lineHeight: 1,
+            fontFamily: "system-ui",
+          }}>
+            {(label || type).charAt(0)}
+          </span>
+        )}
+      </div>
+      {/* Label */}
+      <span style={{
+        ...MONO, fontSize: 9, fontWeight: 600,
+        color: hovered ? color : "var(--text-muted)",
+        textAlign: "center", lineHeight: 1.2,
+        maxWidth: 56, wordBreak: "break-word",
+        textTransform: "uppercase", letterSpacing: 0.3,
+        transition: "color 0.15s",
+      }}>
+        {label || type}
+      </span>
+    </div>
+  );
+}
+
+// Grid wrapper for a category of resource tiles
+function TileGrid({ resources, onDragStart }) {
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(3, 1fr)",
+      gap: "10px 6px",
+      marginBottom: 6,
+    }}>
+      {resources.map((r) => (
+        <ResourceTile key={r.type} {...r} onDragStart={onDragStart} />
+      ))}
     </div>
   );
 }
@@ -64,25 +116,17 @@ function DraggableItem({ type, color, label, onDragStart }) {
 function ResourcesTab({ onDragStart }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 2 }}>
         <SectionLabel label="Network" />
-        {networkResources.map((r) => (
-          <DraggableItem key={r.type} {...r} onDragStart={onDragStart} />
-        ))}
+        <TileGrid resources={networkResources} onDragStart={onDragStart} />
         <SectionLabel label="Compute & Data" />
-        {computeResources.map((r) => (
-          <DraggableItem key={r.type} {...r} onDragStart={onDragStart} />
-        ))}
+        <TileGrid resources={computeResources} onDragStart={onDragStart} />
         <SectionLabel label="Infrastructure" />
-        {infraResources.map((r) => (
-          <DraggableItem key={r.type} {...r} onDragStart={onDragStart} />
-        ))}
+        <TileGrid resources={infraResources} onDragStart={onDragStart} />
         {globalResources.length > 0 && (
           <>
             <SectionLabel label="Global Services" />
-            {globalResources.map((r) => (
-              <DraggableItem key={r.type} {...r} onDragStart={onDragStart} />
-            ))}
+            <TileGrid resources={globalResources} onDragStart={onDragStart} />
           </>
         )}
       </div>

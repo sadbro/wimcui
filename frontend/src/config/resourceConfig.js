@@ -679,6 +679,133 @@ export const resourceFields = {
     },
     ...baseFields,
   ],
+
+  // ─── SNS ──────────────────────────────────────────────────────────────────
+  SNS: [
+    {
+      key: "topic_name",
+      label: "Topic Name",
+      type: "text",
+      placeholder: "my-topic",
+      required: true,
+      validate: (value) => {
+        if (!/^[a-zA-Z0-9_-]{1,256}$/.test(value))
+          return "Topic name must be 1–256 chars: letters, numbers, underscores, hyphens";
+        return null;
+      },
+    },
+    {
+      key: "fifo",
+      label: "Topic Type",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { false: "Standard topic", true: "FIFO topic (append .fifo to name)" },
+      required: true,
+    },
+    {
+      key: "encryption",
+      label: "Server-Side Encryption",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { false: "Disabled", true: "Enabled (SSE-KMS)" },
+      required: false,
+    },
+    {
+      key: "subscription_protocol",
+      label: "Default Subscription Protocol",
+      type: "select",
+      options: ["sqs", "lambda", "email", "http", "https"],
+      required: false,
+    },
+    ...baseFields,
+  ],
+
+  // ─── EventBridge ──────────────────────────────────────────────────────────
+  EventBridge: [
+    {
+      key: "bus_name",
+      label: "Event Bus Name",
+      type: "text",
+      placeholder: "my-event-bus",
+      required: true,
+      validate: (value) => {
+        if (!/^[a-zA-Z0-9_.-]{1,256}$/.test(value))
+          return "Bus name must be 1–256 chars: letters, numbers, underscores, hyphens, dots";
+        if (value === "default")
+          return "Cannot name a custom bus 'default' — that is the AWS default bus";
+        return null;
+      },
+    },
+    {
+      key: "archive_enabled",
+      label: "Event Archive",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { false: "No archive", true: "Archive events (for replay)" },
+      required: false,
+    },
+    {
+      key: "archive_retention",
+      label: "Archive Retention (days, 0 = forever)",
+      type: "text",
+      placeholder: "0",
+      required: false,
+      visibleWhen: (form) => form.archive_enabled === "true",
+      validate: (value) => {
+        if (!value) return null;
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 0) return "Retention must be 0 (forever) or a positive number of days";
+        return null;
+      },
+    },
+    ...baseFields,
+  ],
+
+  // ─── Secrets Manager ──────────────────────────────────────────────────────
+  SecretsManager: [
+    {
+      key: "secret_name",
+      label: "Secret Name",
+      type: "text",
+      placeholder: "prod/db/password",
+      required: true,
+      validate: (value) => {
+        if (!/^[a-zA-Z0-9/_+=.@-]{1,512}$/.test(value))
+          return "Secret name must be 1–512 chars: letters, numbers, /_+=.@-";
+        return null;
+      },
+    },
+    {
+      key: "rotation_enabled",
+      label: "Automatic Rotation",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { false: "Disabled", true: "Enabled" },
+      required: false,
+    },
+    {
+      key: "rotation_days",
+      label: "Rotation Interval (days)",
+      type: "text",
+      placeholder: "30",
+      required: false,
+      visibleWhen: (form) => form.rotation_enabled === "true",
+      validate: (value) => {
+        if (!value) return null;
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 1 || n > 365) return "Rotation interval must be 1–365 days";
+        return null;
+      },
+    },
+    {
+      key: "kms_key",
+      label: "KMS Key ID (optional)",
+      type: "text",
+      placeholder: "alias/my-key or key ARN",
+      required: false,
+    },
+    ...baseFields,
+  ],
 };
 
 export const hasConfig = (type) => !!resourceFields[type];

@@ -463,7 +463,7 @@ export const consequenceRules = [
     category: "smell",
     check: ({ nodes, edges }) => {
       // These types are intentionally edgeless — accessed via IAM policies, not network edges
-      const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "Lambda"];
+      const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "SNS", "EventBridge", "SecretsManager"];
       return nodes
         .filter((n) => {
           if (EDGELESS_TYPES.includes(n.data?.resourceType)) return false;
@@ -896,6 +896,163 @@ export const consequenceRules = [
       return queues.map((n) => ({
         node: n,
         message: `${n.data.label} — first 1M requests/month free; standard ~$0.40/million, FIFO ~$0.50/million thereafter`,
+      }));
+    },
+  },
+
+  // ─── SNS ───────────────────────────────────────────────────────────────────
+
+  {
+    id: "sns_no_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const topics = byResourceType["SNS"] || [];
+      return topics
+        .filter((n) => !n.data?.config?.topic_name?.trim())
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} is missing a topic name — required for aws_sns_topic resource`,
+        }));
+    },
+  },
+
+  {
+    id: "sns_fifo_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const topics = byResourceType["SNS"] || [];
+      return topics
+        .filter((n) => {
+          const name = n.data?.config?.topic_name || "";
+          return n.data?.config?.fifo === "true" && !name.endsWith(".fifo");
+        })
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} is a FIFO topic but the name doesn't end in ".fifo" — AWS will reject it at apply time`,
+        }));
+    },
+  },
+
+  {
+    id: "sns_no_encryption",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const topics = byResourceType["SNS"] || [];
+      return topics
+        .filter((n) => n.data?.config?.encryption !== "true")
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has no SSE encryption — enable KMS encryption for sensitive notification payloads`,
+        }));
+    },
+  },
+
+  {
+    id: "sns_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const topics = byResourceType["SNS"] || [];
+      return topics.map((n) => ({
+        node: n,
+        message: `${n.data.label} — first 1M requests/month free; ~$0.50/million notifications thereafter; data transfer costs apply`,
+      }));
+    },
+  },
+
+  // ─── EventBridge ─────────────────────────────────────────────────────────
+
+  {
+    id: "eventbridge_no_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const buses = byResourceType["EventBridge"] || [];
+      return buses
+        .filter((n) => !n.data?.config?.bus_name?.trim())
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} is missing a bus name — required for aws_cloudwatch_event_bus resource`,
+        }));
+    },
+  },
+
+  {
+    id: "eventbridge_no_archive",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const buses = byResourceType["EventBridge"] || [];
+      return buses
+        .filter((n) => n.data?.config?.archive_enabled !== "true")
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has no event archive — without archiving, events cannot be replayed after failures`,
+        }));
+    },
+  },
+
+  {
+    id: "eventbridge_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const buses = byResourceType["EventBridge"] || [];
+      return buses.map((n) => ({
+        node: n,
+        message: `${n.data.label} — custom bus: $1.00/million events published; no charge for events matched to rules`,
+      }));
+    },
+  },
+
+  // ─── Secrets Manager ─────────────────────────────────────────────────────
+
+  {
+    id: "secrets_no_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const secrets = byResourceType["SecretsManager"] || [];
+      return secrets
+        .filter((n) => !n.data?.config?.secret_name?.trim())
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} is missing a secret name — required for aws_secretsmanager_secret resource`,
+        }));
+    },
+  },
+
+  {
+    id: "secrets_no_rotation",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const secrets = byResourceType["SecretsManager"] || [];
+      return secrets
+        .filter((n) => n.data?.config?.rotation_enabled !== "true")
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has no automatic rotation — static credentials are a security risk; enable rotation`,
+        }));
+    },
+  },
+
+  {
+    id: "secrets_no_kms",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const secrets = byResourceType["SecretsManager"] || [];
+      return secrets
+        .filter((n) => !n.data?.config?.kms_key?.trim())
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} uses the default AWS-managed KMS key — use a customer-managed key for audit control`,
+        }));
+    },
+  },
+
+  {
+    id: "secrets_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const secrets = byResourceType["SecretsManager"] || [];
+      return secrets.map((n) => ({
+        node: n,
+        message: `${n.data.label} — $0.40/secret/month + $0.05/10,000 API calls; rotation adds Lambda invocation costs`,
       }));
     },
   },

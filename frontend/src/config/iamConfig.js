@@ -44,6 +44,8 @@ export const IAM_POLICY_GROUPS = [
     group: "Messaging",
     policies: [
       { key: "AmazonSQSFullAccess",                   label: "SQS Full Access" },
+      { key: "AmazonSNSFullAccess",                   label: "SNS Full Access" },
+      { key: "AmazonEventBridgeFullAccess",            label: "EventBridge Full Access" },
       { key: "AmazonMSKFullAccess",                   label: "MSK Full Access" },
       { key: "AmazonMSKReadOnlyAccess",               label: "MSK Read Only" },
       { key: "AmazonMSKConnectFullAccess",            label: "MSK Connect Full" },
@@ -85,6 +87,8 @@ export const IAM_POLICY_ARNS = {
   AmazonRDSEnhancedMonitoringRole:      "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole",
   SecretsManagerReadWrite:              "arn:aws:iam::aws:policy/SecretsManagerReadWrite",
   AmazonSQSFullAccess:                  "arn:aws:iam::aws:policy/AmazonSQSFullAccess",
+  AmazonSNSFullAccess:                  "arn:aws:iam::aws:policy/AmazonSNSFullAccess",
+  AmazonEventBridgeFullAccess:          "arn:aws:iam::aws:policy/AmazonEventBridgeFullAccess",
   AmazonMSKFullAccess:                  "arn:aws:iam::aws:policy/AmazonMSKFullAccess",
   AmazonMSKReadOnlyAccess:              "arn:aws:iam::aws:policy/AmazonMSKReadOnlyAccess",
   AmazonMSKConnectFullAccess:           "arn:aws:iam::aws:policy/AmazonMSKConnectFullAccess",

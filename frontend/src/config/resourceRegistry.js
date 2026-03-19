@@ -130,6 +130,30 @@ export const RESOURCE_REGISTRY = {
     sgCapable:   false,
     iamCapable:  false,
   },
+  SNS: {
+    label:       "SNS Topic",
+    color:       "#eb2f96",
+    category:    "global",
+    defaultSize: { width: 160, height: 60 },
+    sgCapable:   false,
+    iamCapable:  false,
+  },
+  EventBridge: {
+    label:       "EventBridge",
+    color:       "#fa8c16",
+    category:    "global",
+    defaultSize: { width: 160, height: 60 },
+    sgCapable:   false,
+    iamCapable:  false,
+  },
+  SecretsManager: {
+    label:       "Secrets Manager",
+    color:       "#722ed1",
+    category:    "global",
+    defaultSize: { width: 160, height: 60 },
+    sgCapable:   false,
+    iamCapable:  false,
+  },
 };
 
 /** All registered resource type keys */

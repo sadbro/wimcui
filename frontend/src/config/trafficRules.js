@@ -27,9 +27,12 @@ export const trafficRules = {
   VPC:          null,
   Subnet:       null,
   // Global services — no SG-based traffic edges (access via IAM policies)
-  S3:           null,
-  DynamoDB:     null,
-  SQS:          null,
+  S3:             null,
+  DynamoDB:       null,
+  SQS:            null,
+  SNS:            null,
+  EventBridge:    null,
+  SecretsManager: null,
 };
 
 /**

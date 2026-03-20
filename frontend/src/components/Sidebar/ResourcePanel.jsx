@@ -63,12 +63,12 @@ function ResourceTile({ type, color, label, onDragStart }) {
       <div style={{
         width: 52, height: 52,
         borderRadius: 10,
-        background: "transparent",
-        border: `2px solid ${hovered ? color : `${color}88`}`,
+        background: hovered ? `${color}22` : `${color}11`,
+        border: `2px solid ${hovered ? color : `${color}bb`}`,
         display: "flex", alignItems: "center", justifyContent: "center",
         transition: "border-color 0.15s, box-shadow 0.15s",
         flexShrink: 0,
-        boxShadow: hovered ? `0 0 8px ${color}66` : "none",
+        boxShadow: hovered ? `0 0 12px ${color}88` : "none",
       }}>
         {IconComponent ? (
           <IconComponent size={30} />

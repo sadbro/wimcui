@@ -86,9 +86,10 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
   const lambdas  = ctx.byResourceType?.["Lambda"]   || [];
   const dynamo   = ctx.byResourceType?.["DynamoDB"] || [];
   const sqs      = ctx.byResourceType?.["SQS"]      || [];
-  const sns      = ctx.byResourceType?.["SNS"]      || [];
+  const sns      = ctx.byResourceType?.["SNS"]            || [];
   const evb      = ctx.byResourceType?.["EventBridge"]    || [];
   const secrets  = ctx.byResourceType?.["SecretsManager"] || [];
+  const apigws   = ctx.byResourceType?.["APIGateway"]     || [];
 
   return (
     <div style={{ minWidth: 520, overflowX: "auto" }}>
@@ -422,8 +423,8 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
         ]} />
         {evb.map((n) => (
           <Row key={n.id} cols={[
-            { text: n.data.label,                                                     width: "160px" },
-            { text: n.data.config?.archive_enabled === "true" ? "enabled" : "⚠ none", width: "auto", dim: n.data.config?.archive_enabled === "true" },
+            { text: n.data.label,                                                       width: "160px" },
+            { text: n.data.config?.archive_enabled === "true" ? "enabled" : "⚠ none",  width: "auto", dim: n.data.config?.archive_enabled === "true" },
           ]} />
         ))}
       </>}
@@ -437,9 +438,27 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
         ]} />
         {secrets.map((n) => (
           <Row key={n.id} cols={[
-            { text: n.data.label,                                                          width: "160px" },
-            { text: n.data.config?.rotation_enabled === "true" ? "enabled" : "⚠ off",    width: "80px",  dim: n.data.config?.rotation_enabled === "true" },
-            { text: n.data.config?.kms_key?.trim() || "⚠ default",                        width: "auto",  dim: !!n.data.config?.kms_key?.trim() },
+            { text: n.data.label,                                                        width: "160px" },
+            { text: n.data.config?.rotation_enabled === "true" ? "enabled" : "⚠ off",   width: "80px",  dim: n.data.config?.rotation_enabled === "true" },
+            { text: n.data.config?.kms_key?.trim() || "⚠ default",                       width: "auto",  dim: !!n.data.config?.kms_key?.trim() },
+          ]} />
+        ))}
+      </>}
+
+      {apigws.length > 0 && <>
+        <SectionHeader title="API Gateways" />
+        <TableHeader cols={[
+          { text: "Name",     width: "160px" },
+          { text: "Type",     width: "80px"  },
+          { text: "Stage",    width: "80px"  },
+          { text: "Throttle", width: "auto"  },
+        ]} />
+        {apigws.map((n) => (
+          <Row key={n.id} cols={[
+            { text: n.data.label,                          width: "160px" },
+            { text: n.data.config?.api_type,               width: "80px",  dim: true },
+            { text: n.data.config?.stage_name || "—",      width: "80px",  dim: true },
+            { text: n.data.config?.throttling_rate ? n.data.config.throttling_rate + " r/s" : "⚠ none", width: "auto", dim: !!n.data.config?.throttling_rate },
           ]} />
         ))}
       </>}
@@ -561,9 +580,10 @@ function buildHclChecks(ctx) {
   const lambdas = ctx.byResourceType?.["Lambda"]   || [];
   const dynamo  = ctx.byResourceType?.["DynamoDB"] || [];
   const sqs     = ctx.byResourceType?.["SQS"]      || [];
-  const sns     = ctx.byResourceType?.["SNS"]      || [];
+  const sns     = ctx.byResourceType?.["SNS"]            || [];
   const evb     = ctx.byResourceType?.["EventBridge"]    || [];
   const secrets = ctx.byResourceType?.["SecretsManager"] || [];
+  const apigws  = ctx.byResourceType?.["APIGateway"]     || [];
 
   // Hard fails — Terraform will not apply
   rts.forEach((rt) => {
@@ -762,7 +782,7 @@ function buildHclChecks(ctx) {
     if (!cfg.topic_name?.trim())
       checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a topic name` });
     if (cfg.fifo === "true" && !cfg.topic_name?.endsWith(".fifo"))
-      checks.push({ ok: false, warn: false, message: `${n.data.label} is a FIFO topic but name doesn't end in ".fifo" — AWS will reject this` });
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is a FIFO topic but name doesn't end in ".fifo"` });
   });
 
   // ─── EventBridge hard fails ─────────────────────────────────────────────
@@ -777,6 +797,17 @@ function buildHclChecks(ctx) {
     const cfg = n.data?.config || {};
     if (!cfg.secret_name?.trim())
       checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a secret name` });
+  });
+
+  // ─── API Gateway hard fails ──────────────────────────────────────────────
+  apigws.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.api_name?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing an API name` });
+    if (!cfg.stage_name?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a stage name` });
+    if (!cfg.api_type)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing API type` });
   });
 
   // ─── Orphan check — exclude intentionally edgeless global services ─────────
@@ -899,7 +930,7 @@ export default function ReviewPanel({ nodes, edges, onClose, region, roles = [],
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "0 18px 18px" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "0 18px 18px" }}>
         {activeTab === 0 && <SummaryTab ctx={ctx} roles={roles} securityGroups={securityGroups} />}
         {activeTab === 1 && <ConsequencesTab ctx={ctx} />}
         {activeTab === 2 && <HclReadinessTab ctx={ctx} />}

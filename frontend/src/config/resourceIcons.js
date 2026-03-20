@@ -28,6 +28,7 @@ import S3Icon           from "react-aws-icons/dist/aws/logo/S3";
 import LambdaIcon       from "react-aws-icons/dist/aws/logo/Lambda";
 import DynamoDBIcon     from "react-aws-icons/dist/aws/logo/DynamoDB";
 import SQSIcon          from "react-aws-icons/dist/aws/logo/SQS";
+import APIGatewayIcon   from "react-aws-icons/dist/aws/logo/APIGateway";
 import SNSIcon          from "react-aws-icons/dist/aws/logo/SNS";
 
 // aws-icons CDN for resources not in react-aws-icons (too new)
@@ -63,6 +64,7 @@ export const RESOURCE_ICONS = {
   Lambda:       LambdaIcon,
   DynamoDB:     DynamoDBIcon,
   SQS:          SQSIcon,
+  APIGateway:   APIGatewayIcon,  // ✓ react-aws-icons/dist/aws/logo/APIGateway
   SNS:          SNSIcon,
   EventBridge:    EventBridgeIcon,    // aws-icons CDN — AmazonEventBridge.svg ✓
   SecretsManager: SecretsManagerIcon, // aws-icons CDN — AWSSecretsManager.svg ✓

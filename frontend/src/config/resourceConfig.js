@@ -754,7 +754,7 @@ export const resourceFields = {
       validate: (value) => {
         if (!value) return null;
         const n = parseInt(value, 10);
-        if (isNaN(n) || n < 0) return "Retention must be 0 (forever) or a positive number of days";
+        if (isNaN(n) || n < 0) return "Retention must be 0 (forever) or positive days";
         return null;
       },
     },
@@ -802,6 +802,89 @@ export const resourceFields = {
       label: "KMS Key ID (optional)",
       type: "text",
       placeholder: "alias/my-key or key ARN",
+      required: false,
+    },
+    ...baseFields,
+  ],
+
+  // ─── API Gateway ──────────────────────────────────────────────────────────
+  APIGateway: [
+    {
+      key: "api_name",
+      label: "API Name",
+      type: "text",
+      placeholder: "my-api",
+      required: true,
+      validate: (value) => {
+        if (!value?.trim()) return "API name is required";
+        if (value.length > 128) return "API name must be 128 chars or fewer";
+        return null;
+      },
+    },
+    {
+      key: "api_type",
+      label: "API Type",
+      type: "select",
+      options: ["REST", "HTTP", "WebSocket"],
+      optionLabels: {
+        REST:      "REST — full features, usage plans, caching",
+        HTTP:      "HTTP — low latency, lower cost, simpler",
+        WebSocket: "WebSocket — real-time bidirectional",
+      },
+      required: true,
+    },
+    {
+      key: "stage_name",
+      label: "Stage Name",
+      type: "text",
+      placeholder: "prod",
+      required: true,
+      validate: (value) => {
+        if (!/^[a-zA-Z0-9_-]{1,128}$/.test(value))
+          return "Stage name must be 1–128 chars: letters, numbers, underscores, hyphens";
+        return null;
+      },
+    },
+    {
+      key: "throttling_rate",
+      label: "Throttle Rate (req/sec)",
+      type: "text",
+      placeholder: "1000",
+      required: false,
+      validate: (value) => {
+        if (!value) return null;
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 1) return "Throttle rate must be a positive integer";
+        return null;
+      },
+    },
+    {
+      key: "throttling_burst",
+      label: "Throttle Burst",
+      type: "text",
+      placeholder: "2000",
+      required: false,
+      validate: (value) => {
+        if (!value) return null;
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 1) return "Burst limit must be a positive integer";
+        return null;
+      },
+    },
+    {
+      key: "cors_enabled",
+      label: "CORS",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { false: "Disabled", true: "Enabled" },
+      required: false,
+    },
+    {
+      key: "logging_enabled",
+      label: "Access Logging",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { false: "Disabled", true: "Enabled (CloudWatch)" },
       required: false,
     },
     ...baseFields,

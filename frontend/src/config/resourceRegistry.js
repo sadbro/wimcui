@@ -154,6 +154,14 @@ export const RESOURCE_REGISTRY = {
     sgCapable:   false,
     iamCapable:  false,
   },
+  APIGateway: {
+    label:       "API Gateway",
+    color:       "#a0522d",
+    category:    "global",
+    defaultSize: { width: 160, height: 60 },
+    sgCapable:   false,
+    iamCapable:  false,
+  },
 };
 
 /** All registered resource type keys */

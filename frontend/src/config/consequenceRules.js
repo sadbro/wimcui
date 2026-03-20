@@ -92,16 +92,18 @@ export const consequenceRules = [
   {
     id: "lb_no_targets",
     category: "connectivity",
-    check: ({ lbs, trafficNeighbors }) =>
-      lbs
+    check: ({ lbs, trafficNeighbors }) => {
+      const VALID_LB_TARGETS = new Set(["EC2", "ECS", "Lambda"]);
+      return lbs
         .filter((lb) => {
           const neighbors = trafficNeighbors(lb.id);
-          return !neighbors.some((n) => n?.data?.resourceType === "EC2");
+          return !neighbors.some((n) => VALID_LB_TARGETS.has(n?.data?.resourceType));
         })
         .map((lb) => ({
           node: lb,
-          message: `${lb.data.label} has no EC2 targets — will return 502 to all requests`,
-        })),
+          message: `${lb.data.label} has no targets (${[...VALID_LB_TARGETS].join(", ")}) — will return 502 to all requests`,
+        }));
+    },
   },
 
   {
@@ -463,7 +465,7 @@ export const consequenceRules = [
     category: "smell",
     check: ({ nodes, edges }) => {
       // These types are intentionally edgeless — accessed via IAM policies, not network edges
-      const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "SNS", "EventBridge", "SecretsManager"];
+      const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "SNS", "EventBridge", "SecretsManager", "Lambda"];
       return nodes
         .filter((n) => {
           if (EDGELESS_TYPES.includes(n.data?.resourceType)) return false;
@@ -583,11 +585,18 @@ export const consequenceRules = [
   {
     id: "ec2_no_iam_role",
     category: "security",
-    check: ({ ec2WithoutRole }) =>
-      ec2WithoutRole().map((n) => ({
-        node: n,
-        message: `${n.data.label} has no IAM role — any AWS API calls from this instance will fail with AccessDenied at runtime`,
-      })),
+    check: ({ nodesWithoutRole }) => {
+      const messageByType = {
+        EC2:    (l) => `${l} has no IAM role — AWS API calls from this instance will fail with AccessDenied`,
+        ECS:    (l) => `${l} has no task IAM role — ECS task execution will fail at launch`,
+        Lambda: (l) => `${l} has no execution role — function will fail to invoke`,
+      };
+      return nodesWithoutRole().map((n) => {
+        const type = n.data?.resourceType;
+        const msg  = messageByType[type]?.(n.data.label) ?? `${n.data.label} has no IAM role`;
+        return { node: n, message: msg };
+      });
+    },
   },
 
   {
@@ -780,7 +789,33 @@ export const consequenceRules = [
     },
   },
 
-  // ─── DynamoDB ──────────────────────────────────────────────────────────────
+  // ─── Lambda ↔ RDS VPC guard ─────────────────────────────────────────────────
+
+  {
+    id: "lambda_rds_no_vpc",
+    category: "connectivity",
+    check: ({ byResourceType, trafficEdges, nodeById }) => {
+      const results = [];
+      const lambdas = byResourceType["Lambda"] || [];
+      trafficEdges.forEach((e) => {
+        const src = nodeById(e.source);
+        const tgt = nodeById(e.target);
+        if (
+          src?.data?.resourceType === "Lambda" &&
+          tgt?.data?.resourceType === "RDS" &&
+          src?.data?.config?.vpc_enabled !== "true"
+        ) {
+          results.push({
+            node: src,
+            message: `${src.data.label} connects to ${tgt.data.label} but is not VPC-enabled — non-VPC Lambda cannot reach RDS inside a VPC`,
+          });
+        }
+      });
+      return results;
+    },
+  },
+
+    // ─── DynamoDB ──────────────────────────────────────────────────────────────
 
   {
     id: "dynamodb_no_pitr",
@@ -900,163 +935,6 @@ export const consequenceRules = [
     },
   },
 
-  // ─── SNS ───────────────────────────────────────────────────────────────────
-
-  {
-    id: "sns_no_name",
-    category: "smell",
-    check: ({ byResourceType }) => {
-      const topics = byResourceType["SNS"] || [];
-      return topics
-        .filter((n) => !n.data?.config?.topic_name?.trim())
-        .map((n) => ({
-          node: n,
-          message: `${n.data.label} is missing a topic name — required for aws_sns_topic resource`,
-        }));
-    },
-  },
-
-  {
-    id: "sns_fifo_name",
-    category: "smell",
-    check: ({ byResourceType }) => {
-      const topics = byResourceType["SNS"] || [];
-      return topics
-        .filter((n) => {
-          const name = n.data?.config?.topic_name || "";
-          return n.data?.config?.fifo === "true" && !name.endsWith(".fifo");
-        })
-        .map((n) => ({
-          node: n,
-          message: `${n.data.label} is a FIFO topic but the name doesn't end in ".fifo" — AWS will reject it at apply time`,
-        }));
-    },
-  },
-
-  {
-    id: "sns_no_encryption",
-    category: "security",
-    check: ({ byResourceType }) => {
-      const topics = byResourceType["SNS"] || [];
-      return topics
-        .filter((n) => n.data?.config?.encryption !== "true")
-        .map((n) => ({
-          node: n,
-          message: `${n.data.label} has no SSE encryption — enable KMS encryption for sensitive notification payloads`,
-        }));
-    },
-  },
-
-  {
-    id: "sns_cost",
-    category: "cost",
-    check: ({ byResourceType }) => {
-      const topics = byResourceType["SNS"] || [];
-      return topics.map((n) => ({
-        node: n,
-        message: `${n.data.label} — first 1M requests/month free; ~$0.50/million notifications thereafter; data transfer costs apply`,
-      }));
-    },
-  },
-
-  // ─── EventBridge ─────────────────────────────────────────────────────────
-
-  {
-    id: "eventbridge_no_name",
-    category: "smell",
-    check: ({ byResourceType }) => {
-      const buses = byResourceType["EventBridge"] || [];
-      return buses
-        .filter((n) => !n.data?.config?.bus_name?.trim())
-        .map((n) => ({
-          node: n,
-          message: `${n.data.label} is missing a bus name — required for aws_cloudwatch_event_bus resource`,
-        }));
-    },
-  },
-
-  {
-    id: "eventbridge_no_archive",
-    category: "availability",
-    check: ({ byResourceType }) => {
-      const buses = byResourceType["EventBridge"] || [];
-      return buses
-        .filter((n) => n.data?.config?.archive_enabled !== "true")
-        .map((n) => ({
-          node: n,
-          message: `${n.data.label} has no event archive — without archiving, events cannot be replayed after failures`,
-        }));
-    },
-  },
-
-  {
-    id: "eventbridge_cost",
-    category: "cost",
-    check: ({ byResourceType }) => {
-      const buses = byResourceType["EventBridge"] || [];
-      return buses.map((n) => ({
-        node: n,
-        message: `${n.data.label} — custom bus: $1.00/million events published; no charge for events matched to rules`,
-      }));
-    },
-  },
-
-  // ─── Secrets Manager ─────────────────────────────────────────────────────
-
-  {
-    id: "secrets_no_name",
-    category: "smell",
-    check: ({ byResourceType }) => {
-      const secrets = byResourceType["SecretsManager"] || [];
-      return secrets
-        .filter((n) => !n.data?.config?.secret_name?.trim())
-        .map((n) => ({
-          node: n,
-          message: `${n.data.label} is missing a secret name — required for aws_secretsmanager_secret resource`,
-        }));
-    },
-  },
-
-  {
-    id: "secrets_no_rotation",
-    category: "security",
-    check: ({ byResourceType }) => {
-      const secrets = byResourceType["SecretsManager"] || [];
-      return secrets
-        .filter((n) => n.data?.config?.rotation_enabled !== "true")
-        .map((n) => ({
-          node: n,
-          message: `${n.data.label} has no automatic rotation — static credentials are a security risk; enable rotation`,
-        }));
-    },
-  },
-
-  {
-    id: "secrets_no_kms",
-    category: "security",
-    check: ({ byResourceType }) => {
-      const secrets = byResourceType["SecretsManager"] || [];
-      return secrets
-        .filter((n) => !n.data?.config?.kms_key?.trim())
-        .map((n) => ({
-          node: n,
-          message: `${n.data.label} uses the default AWS-managed KMS key — use a customer-managed key for audit control`,
-        }));
-    },
-  },
-
-  {
-    id: "secrets_cost",
-    category: "cost",
-    check: ({ byResourceType }) => {
-      const secrets = byResourceType["SecretsManager"] || [];
-      return secrets.map((n) => ({
-        node: n,
-        message: `${n.data.label} — $0.40/secret/month + $0.05/10,000 API calls; rotation adds Lambda invocation costs`,
-      }));
-    },
-  },
-
   // ─── S3 ────────────────────────────────────────────────────────────────────
 
   {
@@ -1156,6 +1034,178 @@ export const consequenceRules = [
         node: b,
         message: `${b.data.label} — charged per GB stored, per 1,000 requests, and per GB data transfer out. Versioning multiplies storage cost.`,
       }));
+    },
+  },
+
+
+  // ─── SNS ───────────────────────────────────────────────────────────────────
+
+  {
+    id: "sns_no_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const topics = byResourceType["SNS"] || [];
+      return topics
+        .filter((n) => !n.data?.config?.topic_name?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} is missing a topic name — required for aws_sns_topic` }));
+    },
+  },
+  {
+    id: "sns_fifo_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const topics = byResourceType["SNS"] || [];
+      return topics
+        .filter((n) => n.data?.config?.fifo === "true" && !n.data?.config?.topic_name?.endsWith(".fifo"))
+        .map((n) => ({ node: n, message: `${n.data.label} is a FIFO topic but name doesn't end in ".fifo" — AWS will reject this` }));
+    },
+  },
+  {
+    id: "sns_no_encryption",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const topics = byResourceType["SNS"] || [];
+      return topics
+        .filter((n) => n.data?.config?.encryption !== "true")
+        .map((n) => ({ node: n, message: `${n.data.label} has no SSE encryption — enable KMS for sensitive notification payloads` }));
+    },
+  },
+  {
+    id: "sns_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const topics = byResourceType["SNS"] || [];
+      return topics.map((n) => ({ node: n, message: `${n.data.label} — first 1M requests/month free; ~$0.50/million thereafter` }));
+    },
+  },
+
+  // ─── EventBridge ─────────────────────────────────────────────────────────
+
+  {
+    id: "eventbridge_no_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const buses = byResourceType["EventBridge"] || [];
+      return buses
+        .filter((n) => !n.data?.config?.bus_name?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} is missing a bus name — required for aws_cloudwatch_event_bus` }));
+    },
+  },
+  {
+    id: "eventbridge_no_archive",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const buses = byResourceType["EventBridge"] || [];
+      return buses
+        .filter((n) => n.data?.config?.archive_enabled !== "true")
+        .map((n) => ({ node: n, message: `${n.data.label} has no event archive — events cannot be replayed after failures without archiving` }));
+    },
+  },
+  {
+    id: "eventbridge_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const buses = byResourceType["EventBridge"] || [];
+      return buses.map((n) => ({ node: n, message: `${n.data.label} — $1.00/million events published on custom bus` }));
+    },
+  },
+
+  // ─── Secrets Manager ─────────────────────────────────────────────────────
+
+  {
+    id: "secrets_no_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const secrets = byResourceType["SecretsManager"] || [];
+      return secrets
+        .filter((n) => !n.data?.config?.secret_name?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} is missing a secret name — required for aws_secretsmanager_secret` }));
+    },
+  },
+  {
+    id: "secrets_no_rotation",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const secrets = byResourceType["SecretsManager"] || [];
+      return secrets
+        .filter((n) => n.data?.config?.rotation_enabled !== "true")
+        .map((n) => ({ node: n, message: `${n.data.label} has no automatic rotation — static credentials are a security risk` }));
+    },
+  },
+  {
+    id: "secrets_no_kms",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const secrets = byResourceType["SecretsManager"] || [];
+      return secrets
+        .filter((n) => !n.data?.config?.kms_key?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} uses default AWS-managed KMS key — use a customer-managed key for audit control` }));
+    },
+  },
+  {
+    id: "secrets_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const secrets = byResourceType["SecretsManager"] || [];
+      return secrets.map((n) => ({ node: n, message: `${n.data.label} — $0.40/secret/month + $0.05/10,000 API calls` }));
+    },
+  },
+
+  // ─── API Gateway ─────────────────────────────────────────────────────────
+
+  {
+    id: "apigw_no_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const apis = byResourceType["APIGateway"] || [];
+      return apis
+        .filter((n) => !n.data?.config?.api_name?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} is missing an API name` }));
+    },
+  },
+  {
+    id: "apigw_no_stage",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const apis = byResourceType["APIGateway"] || [];
+      return apis
+        .filter((n) => !n.data?.config?.stage_name?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} has no stage name — API cannot be deployed without a stage` }));
+    },
+  },
+  {
+    id: "apigw_no_integration",
+    category: "connectivity",
+    check: ({ byResourceType, trafficNeighbors }) => {
+      const apis = byResourceType["APIGateway"] || [];
+      const VALID_TARGETS = new Set(["Lambda", "ECS", "EC2"]);
+      return apis
+        .filter((n) => !trafficNeighbors(n.id).some((nb) => VALID_TARGETS.has(nb?.data?.resourceType)))
+        .map((n) => ({ node: n, message: `${n.data.label} has no integration target — needs Lambda, ECS, or EC2 backend` }));
+    },
+  },
+  {
+    id: "apigw_no_throttling",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const apis = byResourceType["APIGateway"] || [];
+      return apis
+        .filter((n) => !n.data?.config?.throttling_rate?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} has no throttling — a traffic spike can exhaust downstream Lambda concurrency` }));
+    },
+  },
+  {
+    id: "apigw_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const apis = byResourceType["APIGateway"] || [];
+      return apis.map((n) => {
+        const type = n.data?.config?.api_type || "REST";
+        const note = type === "HTTP" ? "~$1.00/million requests"
+          : type === "REST" ? "~$3.50/million requests"
+          : "~$1.00/million messages (WebSocket)";
+        return { node: n, message: `${n.data.label} — ${note}` };
+      });
     },
   },
 

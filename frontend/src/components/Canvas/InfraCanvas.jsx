@@ -211,13 +211,16 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
         );
         return;
       }
+      // Determine label based on relationship type
+      const assocLabel = sourceType === "SecretsManager" ? "credentials" : "assoc";
+
       // Valid association — create it directly, no modal needed
       setEdges((eds) => eds.concat({
         id: `e_assoc_${params.source}_${params.target}_${Date.now()}`,
         source: params.source,
         target: params.target,
         type: "association",
-        data: { label: "assoc" },
+        data: { label: assocLabel },
       }));
       return;
     }

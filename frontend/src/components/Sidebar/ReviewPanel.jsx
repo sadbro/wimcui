@@ -151,19 +151,21 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
       {rds.length > 0 && <>
         <SectionHeader title="Databases" />
         <TableHeader cols={[
-          { text: "Name",   width: "120px" },
-          { text: "Engine", width: "90px"  },
-          { text: "Subnet", width: "90px"  },
-          { text: "SG",     width: "auto"  },
+          { text: "Name",    width: "150px" },
+          { text: "Engine",  width: "100px" },
+          { text: "Subnets", width: "70px"  },
+          { text: "Multi-AZ", width: "70px" },
+          { text: "SG",      width: "auto"  },
         ]} />
         {rds.map((n) => {
-          const subnet = nodeById(n.data.config?.subnetId);
+          const rdsSubnets = n.data?.config?.subnets || (n.data?.config?.subnetId ? [n.data.config.subnetId] : []);
           return (
             <Row key={n.id} cols={[
-              { text: n.data.label,                                                 width: "120px" },
-              { text: `${n.data.config?.engine} ${n.data.config?.engine_version}`, width: "90px", dim: true },
-              { text: subnet?.data?.label,                                          width: "90px", dim: true },
-              { text: sgNamesForNode(n),                                            width: "auto", dim: true },
+              { text: n.data.label,                                                 width: "150px" },
+              { text: `${n.data.config?.engine} ${n.data.config?.engine_version}`, width: "100px", dim: true },
+              { text: `${rdsSubnets.length} subnet${rdsSubnets.length !== 1 ? "s" : ""}`, width: "70px", dim: true },
+              { text: n.data.config?.multi_az === "true" ? "yes" : "⚠ no",        width: "70px",  dim: n.data.config?.multi_az === "true" },
+              { text: sgNamesForNode(n),                                            width: "auto",  dim: true },
             ]} />
           );
         })}
@@ -332,17 +334,22 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
           { text: "Launch",      width: "70px"  },
           { text: "CPU",         width: "60px"  },
           { text: "Memory",      width: "60px"  },
+          { text: "Subnets",     width: "60px"  },
           { text: "Count",       width: "auto"  },
         ]} />
-        {ecs.map((n) => (
-          <Row key={n.id} cols={[
-            { text: n.data.label,                    width: "140px" },
-            { text: n.data.config?.launch_type,      width: "70px",  dim: true },
-            { text: n.data.config?.cpu,              width: "60px",  dim: true },
-            { text: n.data.config?.memory,           width: "60px",  dim: true },
-            { text: n.data.config?.desired_count,    width: "auto",  dim: true },
-          ]} />
-        ))}
+        {ecs.map((n) => {
+          const ecsSubnets = n.data?.config?.subnets || (n.data?.config?.subnetId ? [n.data.config.subnetId] : []);
+          return (
+            <Row key={n.id} cols={[
+              { text: n.data.label,                    width: "140px" },
+              { text: n.data.config?.launch_type,      width: "70px",  dim: true },
+              { text: n.data.config?.cpu,              width: "60px",  dim: true },
+              { text: n.data.config?.memory,           width: "60px",  dim: true },
+              { text: `${ecsSubnets.length} subnet${ecsSubnets.length !== 1 ? "s" : ""}`, width: "60px", dim: true },
+              { text: n.data.config?.desired_count,    width: "auto",  dim: true },
+            ]} />
+          );
+        })}
       </>}
 
       {lambdas.length > 0 && <>
@@ -608,8 +615,15 @@ function buildHclChecks(ctx) {
   });
 
   rds.forEach((n) => {
-    if (!n.data?.config?.password)
+    const cfg = n.data?.config || {};
+    if (!cfg.password)
       checks.push({ ok: false, warn: false, message: `${n.data.label} is missing master password` });
+    // Handle both subnets[] (new) and subnetId (legacy)
+    const rdsSubnets = cfg.subnets?.length > 0 ? cfg.subnets : cfg.subnetId ? [cfg.subnetId] : [];
+    if (rdsSubnets.length < 2)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} needs at least 2 subnets in different AZs — required for DB Subnet Group` });
+    if (!cfg.storage_encrypted)
+      checks.push({ ok: false, warn: true, message: `${n.data.label} has no storage encryption — RDS encryption cannot be enabled after creation` });
   });
 
   // Hard fails — missing associations and routes
@@ -727,6 +741,10 @@ function buildHclChecks(ctx) {
   // ─── ECS hard fails ────────────────────────────────────────────────────────
   ecs.forEach((n) => {
     const cfg = n.data?.config || {};
+    // Handle both subnets[] (new) and subnetId (legacy single)
+    const hasSubnet = cfg.subnets?.length > 0 || !!cfg.subnetId;
+    if (!hasSubnet)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} has no subnet assigned — required for ECS task networking` });
     if (!cfg.image?.trim())
       checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a container image — required for task definition` });
     if (!cfg.desired_count?.toString().trim())

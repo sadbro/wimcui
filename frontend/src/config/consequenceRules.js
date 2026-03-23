@@ -220,17 +220,7 @@ export const consequenceRules = [
         })),
   },
 
-  {
-    id: "rds_no_multi_az",
-    category: "availability",
-    check: ({ rds }) =>
-      rds
-        .filter((db) => db.data?.config?.multi_az !== "true")
-        .map((db) => ({
-          node: db,
-          message: `${db.data.label} has Multi-AZ disabled — an AZ failure causes downtime until manual restore`,
-        })),
-  },
+
 
   {
     id: "single_nat",
@@ -1206,6 +1196,196 @@ export const consequenceRules = [
           : "~$1.00/million messages (WebSocket)";
         return { node: n, message: `${n.data.label} — ${note}` };
       });
+    },
+  },
+
+
+  // ─── Availability Zone Rules ─────────────────────────────────────────────
+
+  {
+    id: "nat_single_az",
+    category: "availability",
+    check: ({ nats, privateSubnets, nodeById }) => {
+      if (nats.length === 0) return []; // no NAT — other rules handle that
+      if (privateSubnets.length === 0) return [];
+
+      // Collect unique AZs across private subnets (only where AZ is known)
+      const privateAZs = new Set(
+        privateSubnets
+          .map((s) => s.data?.config?.availability_zone)
+          .filter(Boolean)
+      );
+
+      // If private subnets span more AZs than NAT Gateways, we have a gap
+      if (privateAZs.size > nats.length) {
+        const azList = [...privateAZs].join(", ");
+        return [{
+          node: nats[0], // attach warning to first NAT
+          message: `Only ${nats.length} NAT Gateway${nats.length > 1 ? "s" : ""} for private subnets spanning ${privateAZs.size} AZs (${azList}) — if the NAT's AZ fails, all private subnets lose internet access. Add one NAT Gateway per AZ.`,
+        }];
+      }
+      return [];
+    },
+  },
+
+  {
+    id: "alb_single_az",
+    category: "availability",
+    check: ({ lbs, nodeById }) => {
+      const results = [];
+      lbs.forEach((lb) => {
+        const subnetIds = lb.data?.config?.subnets || [];
+        if (subnetIds.length < 2) return; // already caught by alb_min_subnets
+
+        const azs = subnetIds
+          .map((id) => nodeById(id)?.data?.config?.availability_zone)
+          .filter(Boolean);
+
+        if (azs.length < 2) return; // not enough AZ data — skip
+
+        const uniqueAZs = new Set(azs);
+        if (uniqueAZs.size === 1) {
+          results.push({
+            node: lb,
+            message: `${lb.data.label} subnets are all in ${[...uniqueAZs][0]} — ALB requires subnets in at least 2 AZs for fault tolerance`,
+          });
+        }
+      });
+      return results;
+    },
+  },
+
+  {
+    id: "rds_no_multi_az",
+    category: "availability",
+    check: ({ rds }) =>
+      rds
+        .filter((n) => n.data?.config?.multi_az !== "true")
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has Multi-AZ disabled — no standby instance in a second AZ, risk of data loss and extended downtime on AZ failure`,
+          warn: true,
+        })),
+  },
+
+  {
+    id: "rds_min_subnets",
+    category: "smell",
+    check: ({ rds }) => {
+      return rds
+        .filter((n) => {
+          const subnets = n.data?.config?.subnets || [];
+          return subnets.length < 2;
+        })
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has fewer than 2 subnets — AWS requires a DB Subnet Group with subnets in at least 2 AZs`,
+        }));
+    },
+  },
+
+  {
+    id: "rds_subnet_single_az",
+    category: "availability",
+    check: ({ rds, nodeById }) => {
+      return rds
+        .filter((n) => {
+          const subnetIds = n.data?.config?.subnets || [];
+          if (subnetIds.length < 2) return false; // rds_min_subnets handles this
+          const azs = subnetIds
+            .map((id) => nodeById(id)?.data?.config?.availability_zone)
+            .filter(Boolean);
+          if (azs.length < 2) return false; // not enough AZ data
+          return new Set(azs).size === 1;
+        })
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} subnets are all in the same AZ — DB Subnet Group requires subnets in at least 2 different AZs`,
+        }));
+    },
+  },
+
+  {
+    id: "rds_no_encryption",
+    category: "security",
+    check: ({ rds }) =>
+      rds
+        .filter((n) => n.data?.config?.storage_encrypted !== "true")
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has storage encryption disabled — RDS encryption cannot be enabled after creation; rebuild the instance to fix this`,
+          warn: true,
+        })),
+  },
+
+  {
+    id: "rds_no_kms",
+    category: "security",
+    check: ({ rds }) =>
+      rds
+        .filter((n) => n.data?.config?.storage_encrypted === "true" && !n.data?.config?.kms_key_id?.trim())
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} uses default AWS-managed KMS key — use a customer-managed key for key rotation control and audit trail`,
+          warn: true,
+        })),
+  },
+
+  {
+    id: "ecs_single_az",
+    category: "availability",
+    check: ({ byResourceType, nodeById }) => {
+      const ecsList = byResourceType["ECS"] || [];
+      const results = [];
+      ecsList.forEach((n) => {
+        // Handle both subnetId (single) and subnets[] (future multi-select)
+        const subnetIds = n.data?.config?.subnets?.length
+          ? n.data.config.subnets
+          : n.data?.config?.subnetId
+          ? [n.data.config.subnetId]
+          : [];
+
+        if (subnetIds.length === 0) return;
+
+        const azs = subnetIds
+          .map((id) => nodeById(id)?.data?.config?.availability_zone)
+          .filter(Boolean);
+
+        if (azs.length === 0) return; // no AZ data — skip
+
+        const uniqueAZs = new Set(azs);
+        if (uniqueAZs.size === 1) {
+          results.push({
+            node: n,
+            message: `${n.data.label} is confined to a single AZ (${[...uniqueAZs][0]}) — all tasks run in one AZ. Add subnets across multiple AZs for fault tolerance.`,
+          });
+        }
+      });
+      return results;
+    },
+  },
+
+  {
+    id: "ec2_all_same_az",
+    category: "smell",
+    check: ({ ec2, nodeById }) => {
+      if (ec2.length < 2) return []; // single EC2 is fine
+
+      const azByNode = ec2.map((n) => ({
+        node: n,
+        az: nodeById(n.data?.config?.subnetId)?.data?.config?.availability_zone || null,
+      })).filter((e) => e.az !== null);
+
+      if (azByNode.length < 2) return []; // not enough AZ data
+
+      const uniqueAZs = new Set(azByNode.map((e) => e.az));
+      if (uniqueAZs.size === 1) {
+        return azByNode.map(({ node }) => ({
+          node,
+          message: `${node.data.label} is in ${[...uniqueAZs][0]} — all EC2 instances are in the same AZ. Distribute across AZs for fault tolerance.`,
+        }));
+      }
+      return [];
     },
   },
 

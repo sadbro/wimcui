@@ -233,31 +233,41 @@ export default function ResourcePanel({
         </select>
 
         <input ref={fileInputRef} type="file" accept=".json" onChange={onImport} style={{ display: "none" }} />
-        <div style={{ display: "flex", gap: 5, marginBottom: 5 }}>
-          <button onClick={() => fileInputRef.current?.click()} style={{ ...ghostBtnStyle, flex: 1 }}>
-            Import
-          </button>
-          <button onClick={onExport} style={{ ...ghostBtnStyle, flex: 1 }}>
-            Export
-          </button>
-        </div>
-        <div style={{ display: "flex", gap: 5, marginBottom: 5 }}>
-          <button
-            onClick={onUndo}
-            disabled={!canUndo}
-            title="Undo (Ctrl+Z)"
-            style={{ ...ghostBtnStyle, flex: 1, opacity: canUndo ? 1 : 0.35, cursor: canUndo ? "pointer" : "default" }}
-          >
-            ↩ Undo
-          </button>
-          <button
-            onClick={onRedo}
-            disabled={!canRedo}
-            title="Redo (Ctrl+Y)"
-            style={{ ...ghostBtnStyle, flex: 1, opacity: canRedo ? 1 : 0.35, cursor: canRedo ? "pointer" : "default" }}
-          >
-            ↪ Redo
-          </button>
+        {/* Import / Export / Undo / Redo — single icon row */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+          {[
+            { icon: "⬇", label: "Import", title: "Import canvas (JSON)", onClick: () => fileInputRef.current?.click(), disabled: false },
+            { icon: "⬆", label: "Export", title: "Export canvas (JSON)", onClick: onExport, disabled: false },
+            { icon: "↩", label: "Undo",   title: "Undo (Ctrl+Z)",        onClick: onUndo,   disabled: !canUndo },
+            { icon: "↪", label: "Redo",   title: "Redo (Ctrl+Y)",        onClick: onRedo,   disabled: !canRedo },
+          ].map(({ icon, label, title, onClick, disabled }) => (
+            <button
+              key={label}
+              onClick={onClick}
+              disabled={disabled}
+              title={title}
+              style={{
+                flex: 1,
+                padding: "6px 0",
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                cursor: disabled ? "default" : "pointer",
+                opacity: disabled ? 0.35 : 1,
+                fontSize: 14,
+                lineHeight: 1,
+                color: "var(--text-secondary)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 2,
+                transition: "border-color 0.15s, color 0.15s",
+              }}
+            >
+              <span style={{ fontSize: 13 }}>{icon}</span>
+              <span style={{ fontSize: 8, ...MONO, letterSpacing: 0.5, textTransform: "uppercase" }}>{label}</span>
+            </button>
+          ))}
         </div>
         <button onClick={onReviewCanvas} style={solidBtnStyle}>
           Review Canvas

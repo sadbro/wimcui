@@ -60,7 +60,15 @@ export const resourceFields = {
   ],
 
   RDS: [
-    subnetParent,
+    {
+      key: "subnets",
+      label: "Subnets",
+      type: "multi-select",
+      parentType: "Subnet",
+      required: true,
+      minItems: 2,
+      description: "Select subnets in at least 2 AZs — required for DB Subnet Group",
+    },
     {
       key: "sg_ids",
       label: "Security Groups",
@@ -108,6 +116,22 @@ export const resourceFields = {
       type: "select",
       options: ["false", "true"],
       required: false,
+    },
+    {
+      key: "storage_encrypted",
+      label: "Storage Encryption",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { false: "Disabled (not recommended for production)", true: "Enabled" },
+      required: true,
+    },
+    {
+      key: "kms_key_id",
+      label: "KMS Key ID (optional)",
+      type: "text",
+      placeholder: "alias/aws/rds or key ARN",
+      required: false,
+      visibleWhen: (form) => form.storage_encrypted === "true",
     },
     ...baseFields,
   ],
@@ -416,7 +440,15 @@ export const resourceFields = {
 
   // ─── ECS ─────────────────────────────────────────────────────────────────
   ECS: [
-    subnetParent,
+    {
+      key: "subnets",
+      label: "Subnets",
+      type: "multi-select",
+      parentType: "Subnet",
+      required: true,
+      minItems: 1,
+      description: "Select subnets across multiple AZs for fault tolerance",
+    },
     {
       key: "iam_role_id",
       label: "Task IAM Role",

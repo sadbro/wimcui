@@ -85,27 +85,34 @@ export default function ConfigModal({
   const getParentOptions = (parentType) =>
     canvasNodes.filter((n) => n.data?.resourceType === parentType);
 
+  // Migration: ECS and RDS moved from subnetId (single) to subnets[] (multi-select)
+  // Seed subnets from legacy subnetId so old canvases open correctly
+  const migratedConfig = { ...existingConfig };
+  if ((resourceType === "ECS" || resourceType === "RDS") && !migratedConfig.subnets && migratedConfig.subnetId) {
+    migratedConfig.subnets = [migratedConfig.subnetId];
+  }
+
   const buildInitial = () =>
     fields.reduce((acc, f) => {
-      if (existingConfig[f.key] !== undefined) {
-        acc[f.key] = existingConfig[f.key];
+      if (migratedConfig[f.key] !== undefined) {
+        acc[f.key] = migratedConfig[f.key];
       } else if (f.type === "iam-role-select") {
         acc[f.key] = "";
       } else if (f.type === "sg-select") {
-        acc[f.key] = existingConfig[f.key] !== undefined ? existingConfig[f.key] : [];
+        acc[f.key] = migratedConfig[f.key] !== undefined ? migratedConfig[f.key] : [];
       } else if (f.type === "multi-select") {
-        acc[f.key] = existingConfig[f.key] !== undefined ? existingConfig[f.key] : [];
+        acc[f.key] = migratedConfig[f.key] !== undefined ? migratedConfig[f.key] : [];
       } else if (f.type === "select") {
         const opts = f.getOptions ? f.getOptions(canvasNodes, {}, region) : (f.options || []);
-        acc[f.key] = existingConfig[f.key] !== undefined ? existingConfig[f.key] : (opts[0] || "");
+        acc[f.key] = migratedConfig[f.key] !== undefined ? migratedConfig[f.key] : (opts[0] || "");
       } else if (f.type === "dependent-select") {
         const firstKey = Object.keys(f.optionsMap)[0];
-        acc[f.key] = f.optionsMap[firstKey]?.[0] || "";
+        acc[f.key] = migratedConfig[f.key] !== undefined ? migratedConfig[f.key] : (f.optionsMap[firstKey]?.[0] || "");
       } else if (f.type === "parent-select") {
         const parents = getParentOptions(f.parentType);
-        acc[f.key] = parents.length > 0 ? parents[0].id : "";
+        acc[f.key] = migratedConfig[f.key] !== undefined ? migratedConfig[f.key] : (parents.length > 0 ? parents[0].id : "");
       } else {
-        acc[f.key] = "";
+        acc[f.key] = migratedConfig[f.key] !== undefined ? migratedConfig[f.key] : "";
       }
       return acc;
     }, {});

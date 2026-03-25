@@ -219,7 +219,7 @@ YourResource(nodes, names, ctx, warnings) {
 - `block(type, name, label, body)` — resource block wrapper
 - `tagsBlock(name)` — standard Name tag block
 - `comment(text)` — HCL comment
-- `createRefResolver(names, warnings, label)` — returns `r` with `r(type, id, prop)`, `r.name(id)`, `r.list(type, ids, prop)` for safe reference resolution
+- `createRefResolver(names, warnings, label)` — returns `r` with `r.ref(type, id, prop)`, `r.name(id)`, `r.list(type, ids, prop)` for safe reference resolution
 
 **c) Add to `GENERATION_ORDER`:**
 
@@ -229,7 +229,7 @@ const GENERATION_ORDER = [
   "LoadBalancer", "EC2", "ECS", "RDS", "Lambda",
   "S3", "DynamoDB", "SQS", "SNS", "EventBridge",
   "SecretsManager", "APIGateway", "ElastiCache", "ECR",
-  "Route53", "Kinesis",
+  "Route53", "Kinesis", "ACM", "CloudFront", "WAF", "ASG",
   "YourResource",   // <-- add here, respecting dependency order
 ];
 ```

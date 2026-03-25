@@ -1,6 +1,6 @@
 import { BaseEdge, getBezierPath, EdgeLabelRenderer, useNodes } from "reactflow";
-import { useCanvasFilter } from "../../config/canvasFilterContext";
-import { getEdgeOpacity } from "../../config/canvasLayers";
+import { useCanvasFilter, useSecurityOverlay } from "../../config/canvasFilterContext";
+import { getEdgeOpacity, getSecurityEdgeOpacity } from "../../config/canvasLayers";
 
 const INGRESS_COLOR = "#52c41a"; // green
 const EGRESS_COLOR  = "#ff4d4f"; // red
@@ -44,9 +44,10 @@ export default function TrafficEdge({
   const strokeColor = selected ? "#4338ca" : EDGE_COLOR;
 
   const filter = useCanvasFilter();
+  const secOverlay = useSecurityOverlay();
   const allNodes = useNodes();
   const nodeById = (nid) => allNodes.find((n) => n.id === nid);
-  const opacity = getEdgeOpacity({ source, target }, nodeById, filter);
+  const opacity = secOverlay ? getSecurityEdgeOpacity("traffic") : getEdgeOpacity({ source, target }, nodeById, filter);
 
   return (
     <>

@@ -1,6 +1,6 @@
 import { BaseEdge, getBezierPath, EdgeLabelRenderer, useNodes } from "reactflow";
-import { useCanvasFilter } from "../../config/canvasFilterContext";
-import { getEdgeOpacity } from "../../config/canvasLayers";
+import { useCanvasFilter, useSecurityOverlay } from "../../config/canvasFilterContext";
+import { getEdgeOpacity, getSecurityEdgeOpacity } from "../../config/canvasLayers";
 
 export default function AssociationEdge({
   id, source, target, sourceX, sourceY, targetX, targetY,
@@ -13,9 +13,10 @@ export default function AssociationEdge({
   });
 
   const filter = useCanvasFilter();
+  const secOverlay = useSecurityOverlay();
   const allNodes = useNodes();
   const nodeById = (nid) => allNodes.find((n) => n.id === nid);
-  const opacity = getEdgeOpacity({ source, target }, nodeById, filter);
+  const opacity = secOverlay ? getSecurityEdgeOpacity("association") : getEdgeOpacity({ source, target }, nodeById, filter);
 
   return (
     <>

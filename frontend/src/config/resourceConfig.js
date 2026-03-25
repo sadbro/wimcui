@@ -1209,6 +1209,282 @@ export const resourceFields = {
     },
     ...baseFields,
   ],
+
+  // ─── ACM ────────────────────────────────────────────────────────────────────
+  ACM: [
+    {
+      key: "domain_name",
+      label: "Domain Name",
+      type: "text",
+      placeholder: "example.com or *.example.com",
+      required: true,
+      validate: (value) => {
+        if (!value?.trim()) return "Domain name is required";
+        if (!/^(\*\.)?[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$/.test(value))
+          return "Enter a valid domain (e.g., example.com or *.example.com)";
+        return null;
+      },
+    },
+    {
+      key: "validation_method",
+      label: "Validation Method",
+      type: "select",
+      options: ["DNS", "EMAIL"],
+      optionLabels: {
+        DNS:   "DNS — recommended, auto-renews",
+        EMAIL: "Email — manual renewal",
+      },
+      required: true,
+    },
+    {
+      key: "subject_alternative_names",
+      label: "Subject Alternative Names (comma-separated)",
+      type: "text",
+      placeholder: "www.example.com, api.example.com",
+      required: false,
+    },
+    ...baseFields,
+  ],
+
+  // ─── CloudFront ─────────────────────────────────────────────────────────────
+  CloudFront: [
+    {
+      key: "origin_type",
+      label: "Origin Type",
+      type: "select",
+      options: ["S3", "LoadBalancer", "APIGateway", "custom"],
+      optionLabels: {
+        S3:            "S3 Bucket",
+        LoadBalancer:  "Application Load Balancer",
+        APIGateway:    "API Gateway",
+        custom:        "Custom Origin (URL)",
+      },
+      required: true,
+    },
+    {
+      key: "origin_id",
+      label: "Origin Resource",
+      type: "dependent-select",
+      dependsOn: "origin_type",
+      parentTypeMap: { S3: "S3", LoadBalancer: "LoadBalancer", APIGateway: "APIGateway" },
+      required: false,
+      visibleWhen: (form) => form.origin_type && form.origin_type !== "custom",
+    },
+    {
+      key: "custom_origin",
+      label: "Custom Origin Domain",
+      type: "text",
+      placeholder: "api.example.com",
+      required: false,
+      visibleWhen: (form) => form.origin_type === "custom",
+    },
+    {
+      key: "acm_certificate_id",
+      label: "ACM Certificate",
+      type: "dependent-select",
+      dependsOn: null,
+      parentType: "ACM",
+      required: false,
+    },
+    {
+      key: "price_class",
+      label: "Price Class",
+      type: "select",
+      options: ["PriceClass_All", "PriceClass_200", "PriceClass_100"],
+      optionLabels: {
+        PriceClass_All: "All edge locations (global)",
+        PriceClass_200: "US, Canada, Europe, Asia, Middle East, Africa",
+        PriceClass_100: "US, Canada, Europe only (cheapest)",
+      },
+      required: false,
+    },
+    {
+      key: "default_ttl",
+      label: "Default TTL (seconds)",
+      type: "text",
+      placeholder: "86400",
+      required: false,
+      validate: (value) => {
+        if (!value) return null;
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 0) return "TTL must be a non-negative integer";
+        return null;
+      },
+    },
+    {
+      key: "viewer_protocol_policy",
+      label: "Viewer Protocol",
+      type: "select",
+      options: ["redirect-to-https", "allow-all", "https-only"],
+      optionLabels: {
+        "redirect-to-https": "Redirect HTTP to HTTPS (recommended)",
+        "allow-all":         "Allow HTTP and HTTPS",
+        "https-only":        "HTTPS only",
+      },
+      required: false,
+    },
+    ...baseFields,
+  ],
+
+  // ─── WAF ────────────────────────────────────────────────────────────────────
+  WAF: [
+    {
+      key: "waf_name",
+      label: "Web ACL Name",
+      type: "text",
+      placeholder: "my-web-acl",
+      required: true,
+      validate: (value) => {
+        if (!value?.trim()) return "Web ACL name is required";
+        if (!/^[a-zA-Z0-9_-]{1,128}$/.test(value))
+          return "Name must be 1–128 chars: letters, numbers, underscores, hyphens";
+        return null;
+      },
+    },
+    {
+      key: "scope",
+      label: "Scope",
+      type: "select",
+      options: ["REGIONAL", "CLOUDFRONT"],
+      optionLabels: {
+        REGIONAL:   "Regional — ALB, API Gateway",
+        CLOUDFRONT: "CloudFront — must be in us-east-1",
+      },
+      required: true,
+    },
+    {
+      key: "managed_rules",
+      label: "Managed Rule Groups",
+      type: "multi-select",
+      options: [
+        "AWSManagedRulesCommonRuleSet",
+        "AWSManagedRulesSQLiRuleSet",
+        "AWSManagedRulesKnownBadInputsRuleSet",
+        "AWSManagedRulesAmazonIpReputationList",
+        "AWSManagedRulesBotControlRuleSet",
+      ],
+      required: false,
+    },
+    {
+      key: "rate_limit",
+      label: "Rate Limit (requests per 5 min)",
+      type: "text",
+      placeholder: "2000",
+      required: false,
+      validate: (value) => {
+        if (!value) return null;
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 100) return "Rate limit must be at least 100";
+        return null;
+      },
+    },
+    {
+      key: "default_action",
+      label: "Default Action",
+      type: "select",
+      options: ["allow", "block"],
+      optionLabels: {
+        allow: "Allow — block only matched rules",
+        block: "Block — allow only matched rules",
+      },
+      required: true,
+    },
+    ...baseFields,
+  ],
+
+  // ─── ASG ────────────────────────────────────────────────────────────────────
+  ASG: [
+    {
+      key: "subnets",
+      label: "Subnets",
+      type: "multi-select",
+      parentType: "Subnet",
+    },
+    {
+      key: "ami",
+      label: "AMI ID",
+      type: "text",
+      placeholder: "ami-0c55b159cbfafe1f0",
+      required: true,
+      validate: (value) => {
+        if (!value?.trim()) return "AMI is required";
+        if (!/^ami-[a-f0-9]{8,17}$/.test(value)) return "Invalid AMI format (e.g. ami-0c55b159...)";
+        return null;
+      },
+    },
+    {
+      key: "instance_type",
+      label: "Instance Type",
+      type: "text",
+      placeholder: "t3.micro",
+      required: true,
+    },
+    {
+      key: "min_size",
+      label: "Min Instances",
+      type: "text",
+      placeholder: "1",
+      required: true,
+      validate: (value) => {
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 0) return "Min size must be 0 or greater";
+        return null;
+      },
+    },
+    {
+      key: "max_size",
+      label: "Max Instances",
+      type: "text",
+      placeholder: "4",
+      required: true,
+      validate: (value) => {
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 1) return "Max size must be at least 1";
+        return null;
+      },
+    },
+    {
+      key: "desired_capacity",
+      label: "Desired Capacity",
+      type: "text",
+      placeholder: "2",
+      required: true,
+      validate: (value) => {
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 0) return "Desired capacity must be 0 or greater";
+        return null;
+      },
+    },
+    {
+      key: "health_check_type",
+      label: "Health Check Type",
+      type: "select",
+      options: ["EC2", "ELB"],
+      optionLabels: {
+        EC2: "EC2 — instance status checks",
+        ELB: "ELB — load balancer health checks (recommended with ALB)",
+      },
+      required: false,
+    },
+    {
+      key: "health_check_grace_period",
+      label: "Health Check Grace Period (seconds)",
+      type: "text",
+      placeholder: "300",
+      required: false,
+    },
+    {
+      key: "sg_ids",
+      label: "Security Groups",
+      type: "sg-select",
+    },
+    {
+      key: "iam_role_id",
+      label: "IAM Role",
+      type: "iam-role-select",
+    },
+    ...baseFields,
+  ],
 };
 
 export const hasConfig = (type) => !!resourceFields[type];

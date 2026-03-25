@@ -1678,6 +1678,138 @@ export const consequenceRules = [
     },
   },
 
+  // ─── ACM ────────────────────────────────────────────────────────────────────
+  {
+    id: "acm_no_domain",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const certs = byResourceType["ACM"] || [];
+      return certs
+        .filter((n) => !n.data?.config?.domain_name?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} is missing a domain name` }));
+    },
+  },
+  {
+    id: "acm_email_validation",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const certs = byResourceType["ACM"] || [];
+      return certs
+        .filter((n) => n.data?.config?.validation_method === "EMAIL")
+        .map((n) => ({ node: n, message: `${n.data.label} uses email validation — DNS validation auto-renews and is recommended` }));
+    },
+  },
+
+  // ─── CloudFront ─────────────────────────────────────────────────────────────
+  {
+    id: "cf_no_origin",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const dists = byResourceType["CloudFront"] || [];
+      return dists
+        .filter((n) => !n.data?.config?.origin_id && !n.data?.config?.custom_origin?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} has no origin — distribution needs an S3, ALB, or custom origin` }));
+    },
+  },
+  {
+    id: "cf_no_https",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const dists = byResourceType["CloudFront"] || [];
+      return dists
+        .filter((n) => n.data?.config?.viewer_protocol_policy === "allow-all")
+        .map((n) => ({ node: n, message: `${n.data.label} allows HTTP — redirect to HTTPS for security` }));
+    },
+  },
+  {
+    id: "cf_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const dists = byResourceType["CloudFront"] || [];
+      return dists.map((n) => {
+        const pc = n.data?.config?.price_class || "PriceClass_All";
+        const note = pc === "PriceClass_100" ? "US/Canada/Europe only (cheapest)"
+          : pc === "PriceClass_200" ? "Most regions" : "All edge locations (most expensive)";
+        return { node: n, message: `${n.data.label} — ${note}; ~$0.085/GB transfer` };
+      });
+    },
+  },
+
+  // ─── WAF ────────────────────────────────────────────────────────────────────
+  {
+    id: "waf_no_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const waf = byResourceType["WAF"] || [];
+      return waf
+        .filter((n) => !n.data?.config?.waf_name?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} is missing a Web ACL name` }));
+    },
+  },
+  {
+    id: "waf_no_rules",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const waf = byResourceType["WAF"] || [];
+      return waf
+        .filter((n) => !(n.data?.config?.managed_rules || []).length && !n.data?.config?.rate_limit)
+        .map((n) => ({ node: n, message: `${n.data.label} has no managed rules or rate limit — WAF is effectively a pass-through` }));
+    },
+  },
+  {
+    id: "waf_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const waf = byResourceType["WAF"] || [];
+      return waf.map((n) => {
+        const ruleCount = (n.data?.config?.managed_rules || []).length + (n.data?.config?.rate_limit ? 1 : 0);
+        return { node: n, message: `${n.data.label} — $5/web ACL/month + $1/rule group/month (~$${5 + ruleCount}/month base)` };
+      });
+    },
+  },
+
+  // ─── ASG ────────────────────────────────────────────────────────────────────
+  {
+    id: "asg_no_subnets",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const asgs = byResourceType["ASG"] || [];
+      return asgs
+        .filter((n) => !(n.data?.config?.subnets || []).length)
+        .map((n) => ({ node: n, message: `${n.data.label} has no subnets — ASG needs at least one subnet` }));
+    },
+  },
+  {
+    id: "asg_single_az",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const asgs = byResourceType["ASG"] || [];
+      return asgs
+        .filter((n) => (n.data?.config?.subnets || []).length === 1)
+        .map((n) => ({ node: n, message: `${n.data.label} is in a single subnet — use multiple AZs for high availability` }));
+    },
+  },
+  {
+    id: "asg_no_sg",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const asgs = byResourceType["ASG"] || [];
+      return asgs
+        .filter((n) => !(n.data?.config?.sg_ids || []).length)
+        .map((n) => ({ node: n, message: `${n.data.label} has no Security Group — instances will use VPC default SG` }));
+    },
+  },
+  {
+    id: "asg_min_zero",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const asgs = byResourceType["ASG"] || [];
+      return asgs
+        .filter((n) => parseInt(n.data?.config?.min_size, 10) === 0)
+        .map((n) => ({ node: n, message: `${n.data.label} has min_size 0 — ASG can scale to zero instances` }));
+    },
+  },
+
 ];
 
 export const CATEGORY_LABELS = {

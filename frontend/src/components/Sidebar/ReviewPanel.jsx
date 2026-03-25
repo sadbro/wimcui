@@ -882,8 +882,50 @@ function buildHclChecks(ctx) {
       checks.push({ ok: false, warn: false, message: `${n.data.label} is provisioned but has no shard count — at least 1 shard is required` });
   });
 
+  // ─── ACM hard fails ────────────────────────────────────────────────────────
+  const acms = ctx.byResourceType?.["ACM"] || [];
+  acms.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.domain_name?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a domain name` });
+    if (!cfg.validation_method)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a validation method` });
+  });
+
+  // ─── CloudFront hard fails ────────────────────────────────────────────────
+  const cfs = ctx.byResourceType?.["CloudFront"] || [];
+  cfs.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.origin_id && !cfg.custom_origin?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} has no origin configured` });
+  });
+
+  // ─── WAF hard fails ──────────────────────────────────────────────────────
+  const wafs = ctx.byResourceType?.["WAF"] || [];
+  wafs.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.waf_name?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a Web ACL name` });
+    if (!cfg.default_action)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a default action (allow/block)` });
+  });
+
+  // ─── ASG hard fails ──────────────────────────────────────────────────────
+  const asgs = ctx.byResourceType?.["ASG"] || [];
+  asgs.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!(cfg.subnets || []).length)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} has no subnets` });
+    if (!cfg.ami?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing an AMI` });
+    if (!cfg.instance_type?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing an instance type` });
+    if (!cfg.min_size || !cfg.max_size || !cfg.desired_capacity)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing scaling parameters (min/max/desired)` });
+  });
+
   // ─── Orphan check — exclude intentionally edgeless global services ─────────
-  const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "SNS", "EventBridge", "SecretsManager", "ECR"];
+  const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "SNS", "EventBridge", "SecretsManager", "ECR", "ACM", "WAF"];
   nodes.forEach((n) => {
     if (EDGELESS_TYPES.includes(n.data?.resourceType)) return;
     if (!hasAnyEdge(n.id))

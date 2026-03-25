@@ -17,7 +17,7 @@ export const trafficRules = {
   // ── Compute ─────────────────────────────────────────────────────────────
   EC2:          { allowedSources: ["EC2", "RDS", "LoadBalancer", "Public", "ECS", "Lambda", "APIGateway", "Route53"], allowedTargets: ["EC2", "RDS", "LoadBalancer", "ECS", "ElastiCache", "Kinesis"] },
   RDS:          { allowedSources: ["EC2", "ECS", "Lambda"],                                                           allowedTargets: ["EC2"] },
-  LoadBalancer: { allowedSources: ["Public", "EC2", "Route53"],                                                       allowedTargets: ["EC2", "ECS", "Lambda"] }, // APIGateway VPC Link deferred
+  LoadBalancer: { allowedSources: ["Public", "EC2", "Route53"],                                                       allowedTargets: ["EC2", "ECS", "Lambda", "ASG"] }, // APIGateway VPC Link deferred
   ECS:          { allowedSources: ["LoadBalancer", "EC2", "Public", "Lambda", "APIGateway"],                          allowedTargets: ["RDS", "EC2", "ElastiCache", "Kinesis"] }, // IAM: SQS/DynamoDB/SNS/EventBridge/S3
   // ── Serverless ───────────────────────────────────────────────────────────
   Lambda:       { allowedSources: ["APIGateway", "LoadBalancer", "Kinesis"],                                          allowedTargets: ["RDS", "ECS", "ElastiCache", "EC2", "Kinesis"] }, // IAM: SQS/DynamoDB/SNS/EventBridge/S3
@@ -34,7 +34,12 @@ export const trafficRules = {
   RouteTable:   null,
   VPC:          null,
   Subnet:       null,
+  // ── Auto Scaling ─────────────────────────────────────────────────────────
+  ASG:          { allowedSources: ["LoadBalancer", "Public", "Route53"],                                              allowedTargets: ["RDS", "ElastiCache", "EC2", "Kinesis"] },
   // Global services — accessed via IAM, not network traffic edges
+  ACM:            null,
+  CloudFront:     null,  // CDN — origin association, not traffic edges
+  WAF:            null,  // attached via association
   S3:             null,
   DynamoDB:       null,
   SQS:            null,

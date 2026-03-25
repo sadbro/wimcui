@@ -92,6 +92,7 @@ const LightsailIcon          = _svc("AmazonLightsail.svg");
 const AppRunnerIcon          = _svc("AWSAppRunner.svg");
 const ElasticBeanstalkIcon   = _svc("AWSElasticBeanstalk.svg");
 const OutpostsIcon           = _svc("AWSOutposts.svg");
+const ASGIcon                = _svc("AmazonEC2AutoScaling.svg");
 
 // ─── Load Balancing ──────────────────────────────────────────────────────────
 const LoadBalancerIcon       = _svc("ElasticLoadBalancing.svg");
@@ -145,7 +146,7 @@ const MacieIcon              = _svc("AmazonMacie.svg");
 const InspectorIcon          = _svc("AmazonInspector.svg");
 const SecurityHubIcon        = _svc("AWSSecurityHub.svg");
 const DetectiveIcon          = _svc("AmazonDetective.svg");
-const ACMIcon                = _svc("AWSACM.svg");
+const ACMIcon                = _svc("AWSCertificateManager.svg");
 const SSMIcon                = _svc("AWSSSM.svg");
 const VerifiedPermissionsIcon = _ice("Amazon-Verified-Permissions.svg");
 
@@ -243,6 +244,7 @@ export const RESOURCE_ICONS = {
   AppRunner:            AppRunnerIcon,        // _svc  AWSAppRunner.svg
   ElasticBeanstalk:     ElasticBeanstalkIcon, // _svc  AWSElasticBeanstalk.svg
   Outposts:             OutpostsIcon,         // _svc  AWSOutposts.svg
+  ASG:                  ASGIcon,              // _svc  AmazonEC2AutoScaling.svg
 
   // ── Load Balancing ───────────────────────────────────────────────────────
   LoadBalancer:         LoadBalancerIcon,     // _svc  ElasticLoadBalancing.svg

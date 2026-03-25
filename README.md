@@ -16,35 +16,36 @@ The name is intentional. It answers the question architects ask when staring at 
 
 ### Canvas and Resources
 
-* Drag-and-drop placement of 22 AWS resource types:
+* Drag-and-drop placement of 26 AWS resource types:
   * **Network**: VPC, Subnet, Internet Gateway, NAT Gateway, Route Table
-  * **Compute**: EC2, ECS, Lambda
+  * **Compute**: EC2, ECS, Lambda, Auto Scaling Group
   * **Database**: RDS, DynamoDB, ElastiCache
   * **Load Balancing**: Application/Network Load Balancer
   * **Storage**: S3, ECR
   * **Messaging**: SQS, SNS, EventBridge, Kinesis
-  * **Security**: SecretsManager
+  * **Security**: SecretsManager, WAF, ACM
+  * **CDN**: CloudFront
   * **DNS**: Route53
 * Structural edges that model parent-child relationships (VPC contains Subnet, Subnet contains EC2)
 * Traffic edges that model ingress and egress rules between compute resources
-* Association edges that model Route Table to Subnet and Route Table to IGW/NAT Gateway relationships
+* Association edges that model non-traffic relationships: Route Table to Subnet, ACM to ALB/CloudFront, CloudFront to S3/ALB origin, WAF to ALB/CloudFront/API Gateway, SecretsManager to RDS/ECS
 * Per-resource configuration via modal: CIDR validation, AZ selection, engine versions, instance types, LB listener/target group settings, and more
 
 ### IAM and Security
 
-* IAM Role system: define roles with colors and policies, assign them to EC2, ECS, and Lambda
+* IAM Role system: define roles with colors and policies, assign them to EC2, ECS, Lambda, and ASG
 * Security Group system: define SGs with inbound/outbound rules, assign to SG-capable resources
 * Role and SG assignments visible on canvas via color indicators
 
 ### Validation
 
-* Consequence engine: 20+ rules that flag availability, security, cost, and configuration issues in real time
+* Consequence engine: 120+ rules that flag availability, security, cost, and configuration issues in real time
 * HCL Readiness checks: hard fail validations that block generation until the canvas is valid
-* Per-resource-type checks for all 22 resource types
+* Per-resource-type checks for all 26 resource types
 
 ### HCL Generation and Terraform Validation
 
-* Full Terraform HCL generation covering all 22 resource types, Security Groups, and IAM Roles
+* Full Terraform HCL generation covering all 26 resource types, Security Groups, and IAM Roles
 * Safe reference resolution: broken references produce `# WARNING:` comments and collected warnings instead of `undefined` in output
 * Reverse name map: maps Terraform resource names back to canvas node IDs for error mapping
 * Dual-mode Terraform validation:
@@ -53,9 +54,14 @@ The name is intentional. It answers the question architects ask when staring at 
   * Auto-detection at startup with mode indicator in the UI
 * Copy to clipboard, download as `.tf`, and validate — all from the HCL Readiness tab
 
+### Canvas Views
+
+* **Layer filters**: toggle between All, Network, Compute, Data, and Services views — dims unrelated resources and edges for focus
+* **Security overlay**: highlights SG-capable resources, flags exposed nodes (no SGs) with red glow, shows SG color glow on protected nodes, dims non-traffic edges
+
 ### Canvas Management
 
-* Canvas export and import as JSON
+* Canvas export and import as JSON with versioned schema and forward migration
 * Undo and redo with full state restoration including edges and IAM assignments
 * Dark and light theme
 * Region selector
@@ -66,9 +72,8 @@ The name is intentional. It answers the question architects ask when staring at 
 
 * Multi-region canvases — one region per canvas
 * Importing existing Terraform or CloudFormation into the canvas
-* Additional resources: VPC Endpoints, CloudFront, WAF, ASG, ACM, Cognito, VPC Peering, EFS
+* Additional resources: VPC Endpoints, Cognito, VPC Peering, EFS, EKS
 * Predefined architecture templates
-* Canvas JSON versioning for forward-compatible save/load
 
 ---
 
@@ -107,13 +112,16 @@ wimcui/
 │   │   │       ├── ReviewPanel.jsx      # Consequence rules, HCL readiness, validation UI
 │   │   │       └── RoleManager.jsx
 │   │   ├── config/
-│   │   │   ├── resourceRegistry.js      # 22 resource type definitions
+│   │   │   ├── resourceRegistry.js      # 26 resource type definitions
 │   │   │   ├── resourceConfig.js        # Per-type field definitions
-│   │   │   ├── hclGenerator.js          # Full HCL generator (all 22 types + SGs + IAM)
+│   │   │   ├── hclGenerator.js          # Full HCL generator (all 26 types + SGs + IAM)
 │   │   │   ├── canvasContext.js          # buildContext() — derived state from canvas
 │   │   │   ├── consequenceRules.js      # Warning-level validation rules
 │   │   │   ├── trafficRules.js          # Traffic edge validation
 │   │   │   ├── associationRules.js      # Association edge rules
+│   │   │   ├── canvasLayers.js          # Layer filter + security overlay helpers
+│   │   │   ├── canvasFilterContext.js   # Layer + security overlay React contexts
+│   │   │   ├── canvasMigrations.js      # JSON versioning and migration chain
 │   │   │   ├── iamConfig.js
 │   │   │   ├── rolesContext.js
 │   │   │   ├── cidrUtils.js
@@ -201,11 +209,11 @@ Each resource type has its own set of validated fields. CIDR blocks are checked 
 
 ### IAM Roles
 
-Roles are defined in the Configure tab of the sidebar. Each role has a name, a color, and a set of AWS managed policies selected from a grouped catalog. Roles are assigned to EC2, ECS, and Lambda instances. The assigned role appears as a color stripe on the node on the canvas.
+Roles are defined in the Configure tab of the sidebar. Each role has a name, a color, and a set of AWS managed policies selected from a grouped catalog. Roles are assigned to EC2, ECS, Lambda, and ASG. The assigned role appears as a color stripe on the node on the canvas.
 
 ### Security Groups
 
-Security Groups are defined in the Configure tab. Each SG has a name, color, and inbound/outbound rules (port, protocol, CIDR). SGs are assigned to SG-capable resources (EC2, ECS, Lambda, RDS, Load Balancer, ElastiCache). Traffic edges between resources auto-derive additional SG rules.
+Security Groups are defined in the Configure tab. Each SG has a name, color, and inbound/outbound rules (port, protocol, CIDR). SGs are assigned to SG-capable resources (EC2, ECS, Lambda, RDS, Load Balancer, ElastiCache, ASG). Traffic edges between resources auto-derive additional SG rules.
 
 ### Consequence Engine
 
@@ -213,11 +221,27 @@ The Review Canvas panel runs all consequence rules against the current canvas st
 
 ### HCL Generation
 
-The HCL Readiness tab validates readiness, generates Terraform HCL for all canvas resources, and provides copy/download/validate actions. The generator covers all 22 resource types plus Security Groups and IAM Roles with dependency-ordered output.
+The HCL Readiness tab validates readiness, generates Terraform HCL for all canvas resources, and provides copy/download/validate actions. The generator covers all 26 resource types plus Security Groups and IAM Roles with dependency-ordered output.
 
 ### Terraform Validation
 
 Generated HCL can be validated against the Terraform AWS provider. The validation engine auto-detects: if the terraform binary is available, it runs full `terraform init + validate` with JSON diagnostics mapped back to canvas nodes. If terraform is unavailable, python-hcl2 provides syntax-only validation. The active engine is shown in the UI.
+
+### Canvas Layers
+
+The top-center pill bar switches between architectural views: All, Network, Compute, Data, and Services. Each layer highlights the relevant resource types and dims everything else. Edges use 3-tier opacity: full for both endpoints in layer, 0.3 for boundary edges, 0.08 for unrelated.
+
+### Security Overlay
+
+A dedicated toggle (separate from layer filters) activates the security view. When active:
+
+* SG-capable resources with assigned Security Groups glow with their primary SG color
+* SG-capable resources without SGs are flagged with a red "exposed" glow
+* Non-SG-capable resources dim to background
+* Traffic edges stay full opacity; structural and association edges dim
+* SG color stripes on nodes widen for visibility
+
+The overlay and layer filters are mutually exclusive — activating security resets to "All" view, and selecting a layer filter turns off the security overlay.
 
 ### Undo and Redo
 

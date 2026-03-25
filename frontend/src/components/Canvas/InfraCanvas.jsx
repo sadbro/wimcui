@@ -18,7 +18,7 @@ import { validateAssociationConnection } from "../../config/associationRules";
 import { cidrContains } from "../../config/cidrUtils";
 import { CANVAS_VERSION, migrateCanvas } from "../../config/canvasMigrations";
 import { LAYERS, LAYER_ORDER } from "../../config/canvasLayers";
-import { CanvasFilterContext } from "../../config/canvasFilterContext";
+import { CanvasFilterContext, SecurityOverlayContext } from "../../config/canvasFilterContext";
 
 import ReactFlow, {
   Background,
@@ -61,6 +61,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
   const [reviewOpen, setReviewOpen] = useState(false);
   const [pendingSGPrompt, setPendingSGPrompt] = useState(null); // nodes needing SG auto-create
   const [canvasFilter, setCanvasFilter] = useState("all");
+  const [securityOverlay, setSecurityOverlay] = useState(false);
 
   // Undo / Redo history
   const [past,   setPast]   = useState([]);
@@ -997,6 +998,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
       )}
 
       <CanvasFilterContext.Provider value={canvasFilter}>
+      <SecurityOverlayContext.Provider value={securityOverlay}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -1027,22 +1029,38 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
               {LAYER_ORDER.map((key) => (
                 <button
                   key={key}
-                  onClick={() => setCanvasFilter(key)}
+                  onClick={() => { setCanvasFilter(key); setSecurityOverlay(false); }}
                   style={{
                     fontFamily: "monospace", fontSize: 11, padding: "4px 10px",
-                    background: canvasFilter === key ? "var(--accent)" : "transparent",
-                    color: canvasFilter === key ? "#fff" : "var(--text-muted)",
+                    background: !securityOverlay && canvasFilter === key ? "var(--accent)" : "transparent",
+                    color: !securityOverlay && canvasFilter === key ? "#fff" : "var(--text-muted)",
                     border: "none", borderRadius: 4, cursor: "pointer",
-                    fontWeight: canvasFilter === key ? 600 : 400,
+                    fontWeight: !securityOverlay && canvasFilter === key ? 600 : 400,
                     transition: "all 0.15s ease",
                   }}
                 >
                   {LAYERS[key].label}
                 </button>
               ))}
+              <div style={{ width: 1, background: "var(--border)", margin: "2px 4px" }} />
+              <button
+                onClick={() => { setSecurityOverlay((v) => !v); setCanvasFilter("all"); }}
+                style={{
+                  fontFamily: "monospace", fontSize: 11, padding: "4px 10px",
+                  background: securityOverlay ? "#ff4d4f" : "transparent",
+                  color: securityOverlay ? "#fff" : "var(--text-muted)",
+                  border: "none", borderRadius: 4, cursor: "pointer",
+                  fontWeight: securityOverlay ? 600 : 400,
+                  transition: "all 0.15s ease",
+                }}
+                title="Security overlay — highlights SG-capable resources, flags exposed nodes"
+              >
+                Security
+              </button>
             </div>
           </Panel>
         </ReactFlow>
+      </SecurityOverlayContext.Provider>
       </CanvasFilterContext.Provider>
 
       {reviewOpen && (

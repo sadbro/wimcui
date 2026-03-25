@@ -181,6 +181,40 @@ export const RESOURCE_REGISTRY = {
     sgCapable:   false,
     iamCapable:  false,
   },
+  // ─── Security & CDN ─────────────────────────────────────────────────────────
+  ACM: {
+    label:       "ACM Certificate",
+    color:       "#d4a017",
+    category:    "global",
+    defaultSize: { width: 160, height: 60 },
+    sgCapable:   false,
+    iamCapable:  false,
+  },
+  CloudFront: {
+    label:       "CloudFront",
+    color:       "#8b5cf6",
+    category:    "global",
+    defaultSize: { width: 160, height: 60 },
+    sgCapable:   false,
+    iamCapable:  false,
+  },
+  WAF: {
+    label:       "WAF",
+    color:       "#dc2626",
+    category:    "global",
+    defaultSize: { width: 160, height: 60 },
+    sgCapable:   false,
+    iamCapable:  false,
+  },
+  // ─── Compute (scaling) ─────────────────────────────────────────────────────
+  ASG: {
+    label:       "Auto Scaling Group",
+    color:       "#f59e0b",
+    category:    "compute",
+    defaultSize: { width: 160, height: 60 },
+    sgCapable:   true,
+    iamCapable:  true,
+  },
   // ─── DNS & Streaming ────────────────────────────────────────────────────────
   Route53: {
     label:       "Route 53",

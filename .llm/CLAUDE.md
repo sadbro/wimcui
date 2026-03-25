@@ -57,6 +57,13 @@ Use **ElastiCache** as the reference implementation — grep for it across all 8
 - Nodes read filter via `useCanvasFilter()` hook, edges via `useNodes()` + `getEdgeOpacity()`
 - Layers are a view concern — no data mutation, no undo pollution
 
+### Security Overlay
+- Separate toggle from layers, passed via `SecurityOverlayContext`
+- Mutually exclusive with layer filters — activating security resets layer to "all", selecting a layer turns off security
+- Nodes read via `useSecurityOverlay()` hook
+- `getSecurityNodeStyle()` in `canvasLayers.js` returns opacity/glow/border overrides
+- `getSecurityEdgeOpacity()` keeps traffic edges full, dims others
+
 ### Canvas JSON Versioning
 - `CANVAS_VERSION` and `migrateCanvas()` in `canvasMigrations.js`
 - Export writes integer version, import runs migration chain
@@ -86,4 +93,4 @@ Use **ElastiCache** as the reference implementation — grep for it across all 8
 
 ## Current Resource Count
 
-22 types: VPC, Subnet, EC2, RDS, LoadBalancer, ECS, IGW, NATGateway, RouteTable, S3, Lambda, DynamoDB, SQS, SNS, EventBridge, SecretsManager, APIGateway, ElastiCache, ECR, Route53, Kinesis
+26 types: VPC, Subnet, EC2, RDS, LoadBalancer, ECS, IGW, NATGateway, RouteTable, S3, Lambda, DynamoDB, SQS, SNS, EventBridge, SecretsManager, APIGateway, ElastiCache, ECR, Route53, Kinesis, ACM, CloudFront, WAF, ASG

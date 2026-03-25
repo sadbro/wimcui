@@ -15,6 +15,9 @@ export const associationRules = {
   RouteTable:     { allowedTargets: ["Subnet", "IGW", "NATGateway"] },
   Subnet:         { allowedTargets: ["RouteTable"] },
   SecretsManager: { allowedTargets: ["RDS", "ECS", "Lambda", "EC2"] }, // credentials association
+  ACM:            { allowedTargets: ["LoadBalancer", "CloudFront"] },  // certificate attachment
+  CloudFront:     { allowedTargets: ["S3", "LoadBalancer", "APIGateway"] }, // origin association
+  WAF:            { allowedTargets: ["LoadBalancer", "CloudFront", "APIGateway"] }, // web ACL attachment
 };
 
 /**

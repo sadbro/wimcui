@@ -8,9 +8,9 @@
 export const LAYERS = {
   all:      { label: "All",      resourceTypes: null, edgeTypes: null },
   network:  { label: "Network",  resourceTypes: ["VPC", "Subnet", "IGW", "NATGateway", "RouteTable", "Route53"], edgeTypes: ["structural", "association"] },
-  compute:  { label: "Compute",  resourceTypes: ["EC2", "ECS", "Lambda", "LoadBalancer"], edgeTypes: ["traffic"] },
+  compute:  { label: "Compute",  resourceTypes: ["EC2", "ECS", "Lambda", "LoadBalancer", "ASG"], edgeTypes: ["traffic"] },
   data:     { label: "Data",     resourceTypes: ["RDS", "DynamoDB", "ElastiCache", "S3"], edgeTypes: ["traffic"] },
-  services: { label: "Services", resourceTypes: ["SQS", "SNS", "EventBridge", "Kinesis", "SecretsManager", "ECR", "APIGateway"], edgeTypes: ["association"] },
+  services: { label: "Services", resourceTypes: ["SQS", "SNS", "EventBridge", "Kinesis", "SecretsManager", "ECR", "APIGateway", "ACM", "CloudFront", "WAF"], edgeTypes: ["association"] },
 };
 
 export const LAYER_ORDER = ["all", "network", "compute", "data", "services"];
@@ -54,4 +54,47 @@ export function getEdgeOpacity(edge, nodeById, layerKey) {
   if (sourceIn && targetIn) return 1;
   if (sourceIn || targetIn) return 0.3;
   return 0.08;
+}
+
+// ─── Security Overlay ────────────────────────────────────────────────────────
+
+import { RESOURCE_REGISTRY } from "./resourceRegistry.js";
+
+/** Whether a node's resource type supports security groups. */
+export function isSgCapable(node) {
+  const rt = node?.data?.resourceType;
+  return !!RESOURCE_REGISTRY[rt]?.sgCapable;
+}
+
+/** Whether a node has at least one SG assigned. */
+export function hasSGAssigned(node) {
+  return (node?.data?.config?.sg_ids || []).length > 0;
+}
+
+/**
+ * Security overlay node style.
+ * Returns { opacity, boxShadow, borderColor } overrides, or null if overlay is off.
+ */
+export function getSecurityNodeStyle(node, securityGroups) {
+  const capable = isSgCapable(node);
+  if (!capable) return { opacity: 0.15, boxShadow: "none", borderColor: null };
+
+  const sgIds = node?.data?.config?.sg_ids || [];
+  if (sgIds.length === 0) {
+    // Exposed — no SGs assigned
+    return { opacity: 1, boxShadow: "0 0 0 2px #ff4d4f88, 0 0 8px #ff4d4f44", borderColor: "#ff4d4f" };
+  }
+
+  // Has SGs — glow with primary SG color
+  const primarySg = securityGroups.find((sg) => sg.id === sgIds[0]);
+  const color = primarySg?.color || "#52c41a";
+  return { opacity: 1, boxShadow: `0 0 0 2px ${color}88, 0 0 8px ${color}44`, borderColor: color };
+}
+
+/**
+ * Edge opacity during security overlay.
+ * Traffic edges stay full, others dim heavily.
+ */
+export function getSecurityEdgeOpacity(edgeType) {
+  return edgeType === "traffic" ? 1 : 0.08;
 }

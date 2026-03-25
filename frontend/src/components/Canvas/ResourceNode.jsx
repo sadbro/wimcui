@@ -2,6 +2,8 @@ import { Handle, Position } from "reactflow";
 import { useContext } from "react";
 import { RolesContext } from "../../config/rolesContext";
 import { SecurityGroupsContext } from "../../config/securityGroupsContext";
+import { useCanvasFilter } from "../../config/canvasFilterContext";
+import { isNodeInLayer } from "../../config/canvasLayers";
 import { NodeResizer } from "@reactflow/node-resizer";
 import "@reactflow/node-resizer/dist/style.css";
 import { resourceColor } from "../../config/resourceRegistry";
@@ -11,6 +13,8 @@ export default function ResourceNode({ id, data, selected }) {
   const colors = { border: resourceColor(resourceType) };
   const roles = useContext(RolesContext);
   const securityGroups = useContext(SecurityGroupsContext);
+  const canvasFilter = useCanvasFilter();
+  const dimmed = !isNodeInLayer({ data }, canvasFilter);
   const assignedRoleId = data?.config?.iam_role_id;
   const assignedSGIds  = data?.config?.sg_ids || [];
   const assignedSGs    = assignedSGIds.map((id) => securityGroups.find((s) => s.id === id)).filter(Boolean);
@@ -38,6 +42,8 @@ export default function ResourceNode({ id, data, selected }) {
       boxSizing: "border-box",
       color: "var(--text-primary)", fontSize: 13,
       boxShadow: selected ? `0 0 0 2px ${colors.border}44` : "none",
+      opacity: dimmed ? 0.15 : 1,
+      transition: "opacity 0.2s ease",
     }}>
       <NodeResizer isVisible={selected} minWidth={100} minHeight={40} color={colors.border} />
       <div

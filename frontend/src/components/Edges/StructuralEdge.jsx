@@ -1,13 +1,20 @@
-import { BaseEdge, getBezierPath } from "reactflow";
+import { BaseEdge, getBezierPath, useNodes } from "reactflow";
+import { useCanvasFilter } from "../../config/canvasFilterContext";
+import { getEdgeOpacity } from "../../config/canvasLayers";
 
 export default function StructuralEdge({
-  id, sourceX, sourceY, targetX, targetY,
+  id, source, target, sourceX, sourceY, targetX, targetY,
   sourcePosition, targetPosition, markerEnd,
 }) {
   const [edgePath] = getBezierPath({
     sourceX, sourceY, sourcePosition,
     targetX, targetY, targetPosition,
   });
+
+  const filter = useCanvasFilter();
+  const nodes = useNodes();
+  const nodeById = (nid) => nodes.find((n) => n.id === nid);
+  const opacity = getEdgeOpacity({ source, target }, nodeById, filter);
 
   return (
     <BaseEdge
@@ -18,6 +25,8 @@ export default function StructuralEdge({
         stroke: "#aaa",
         strokeWidth: 2,
         strokeDasharray: "6 3",
+        opacity,
+        transition: "opacity 0.2s ease",
       }}
     />
   );

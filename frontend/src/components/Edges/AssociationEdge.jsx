@@ -1,7 +1,9 @@
-import { BaseEdge, getBezierPath, EdgeLabelRenderer } from "reactflow";
+import { BaseEdge, getBezierPath, EdgeLabelRenderer, useNodes } from "reactflow";
+import { useCanvasFilter } from "../../config/canvasFilterContext";
+import { getEdgeOpacity } from "../../config/canvasLayers";
 
 export default function AssociationEdge({
-  id, sourceX, sourceY, targetX, targetY,
+  id, source, target, sourceX, sourceY, targetX, targetY,
   sourcePosition, targetPosition, selected, data,
 }) {
   const [edgePath, labelX, labelY] = getBezierPath({
@@ -9,6 +11,11 @@ export default function AssociationEdge({
     targetX, targetY, targetPosition,
     curvature: 0.3,
   });
+
+  const filter = useCanvasFilter();
+  const allNodes = useNodes();
+  const nodeById = (nid) => allNodes.find((n) => n.id === nid);
+  const opacity = getEdgeOpacity({ source, target }, nodeById, filter);
 
   return (
     <>
@@ -19,6 +26,8 @@ export default function AssociationEdge({
           stroke: selected ? "var(--accent)" : "#6b7a99",
           strokeWidth: selected ? 2 : 1.5,
           strokeDasharray: "4 3",
+          opacity,
+          transition: "opacity 0.2s ease",
         }}
       />
       <EdgeLabelRenderer>
@@ -34,6 +43,8 @@ export default function AssociationEdge({
             color: "#6b7a99",
             pointerEvents: "none",
             whiteSpace: "nowrap",
+            opacity,
+            transition: "opacity 0.2s ease",
           }}
           className="nodrag nopan"
         >

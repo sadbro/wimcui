@@ -25,6 +25,10 @@ def validate():
 
     hcl = body["hcl"]
     reverse = body.get("reverse", {})
+    mode = body.get("mode", "auto")  # "auto" | "terraform" | "hcl2"
 
-    result = validate_hcl(hcl, reverse)
+    if mode not in ("auto", "terraform", "hcl2"):
+        return jsonify({"error": f"Invalid mode '{mode}'. Must be 'auto', 'terraform', or 'hcl2'."}), 400
+
+    result = validate_hcl(hcl, reverse, mode=mode)
     return jsonify(result)

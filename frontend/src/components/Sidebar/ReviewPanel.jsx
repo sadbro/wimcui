@@ -904,14 +904,15 @@ function HclReadinessTab({ ctx, region }) {
   const [copied, setCopied] = useState(false);
   const [validating, setValidating] = useState(false);
   const [validation, setValidation] = useState(null); // { valid, diagnostics, mode }
-  const [valMode, setValMode] = useState(null); // "terraform" | "hcl2" | "none" | null (loading)
+  const [serverMode, setServerMode] = useState(null); // what the server has: "terraform" | "hcl2" | "none"
+  const [selectedMode, setSelectedMode] = useState("auto"); // user choice: "auto" | "terraform" | "hcl2"
   const codeRef = useRef(null);
 
   useEffect(() => {
     fetch("/api/validation-mode")
       .then((r) => r.json())
-      .then((data) => setValMode(data.mode))
-      .catch(() => setValMode("none"));
+      .then((data) => setServerMode(data.mode))
+      .catch(() => setServerMode("none"));
   }, []);
 
   const hasHardErrors = checks.some((c) => !c.ok && !c.warn);
@@ -932,13 +933,15 @@ function HclReadinessTab({ ctx, region }) {
       const res = await fetch("/api/validate-hcl", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hcl, reverse: reverseMap }),
+        body: JSON.stringify({ hcl, reverse: reverseMap, mode: selectedMode }),
       });
       const data = await res.json();
       setValidation(data);
     } catch (err) {
       setValidation({
         valid: false,
+        mode: "none",
+        fallback: false,
         diagnostics: [{
           severity: "error",
           summary: "Backend unreachable",
@@ -1044,35 +1047,49 @@ function HclReadinessTab({ ctx, region }) {
             </button>
             <button
               onClick={handleValidate}
-              disabled={validating || valMode === "none"}
+              disabled={validating || serverMode === "none"}
               style={{
                 ...MONO, fontSize: 12, padding: "8px 12px",
                 background: validating ? "var(--bg-elevated)" : "#1a1a2e",
                 color: validating ? "var(--text-muted)" : "#a78bfa",
                 border: "1px solid #a78bfa44",
                 borderRadius: 4,
-                cursor: validating || valMode === "none" ? "not-allowed" : "pointer",
-                opacity: validating || valMode === "none" ? 0.6 : 1,
+                cursor: validating || serverMode === "none" ? "not-allowed" : "pointer",
+                opacity: validating || serverMode === "none" ? 0.6 : 1,
               }}
             >
               {validating ? "Validating..." : "Validate"}
             </button>
+            <select
+              value={selectedMode}
+              onChange={(e) => setSelectedMode(e.target.value)}
+              style={{
+                ...MONO, fontSize: 11, padding: "6px 8px",
+                background: "var(--bg-elevated)", color: "var(--text-primary)",
+                border: "1px solid var(--border)", borderRadius: 4,
+                cursor: "pointer",
+              }}
+            >
+              <option value="auto">auto</option>
+              {serverMode === "terraform" && <option value="terraform">terraform</option>}
+              {(serverMode === "terraform" || serverMode === "hcl2") && <option value="hcl2">hcl2</option>}
+            </select>
           </>
         )}
       </div>
 
       {/* Validation mode indicator */}
-      {hcl && valMode && (
+      {hcl && serverMode && (
         <div style={{
           ...MONO, fontSize: 10, marginTop: 8, padding: "4px 8px",
-          background: valMode === "terraform" ? "#0a2e1a" : valMode === "hcl2" ? "#2e2a0a" : "#2e0a0a",
-          border: `1px solid ${valMode === "terraform" ? "#2d6a4f" : valMode === "hcl2" ? "#6a5f2d" : "#6a2d2d"}`,
+          background: serverMode === "terraform" ? "#0a2e1a" : serverMode === "hcl2" ? "#2e2a0a" : "#2e0a0a",
+          border: `1px solid ${serverMode === "terraform" ? "#2d6a4f" : serverMode === "hcl2" ? "#6a5f2d" : "#6a2d2d"}`,
           borderRadius: 3, display: "inline-block",
-          color: valMode === "terraform" ? "#52c41a" : valMode === "hcl2" ? "#faad14" : "#ff4d4f",
+          color: serverMode === "terraform" ? "#52c41a" : serverMode === "hcl2" ? "#faad14" : "#ff4d4f",
         }}>
-          {valMode === "terraform" && "engine: terraform — full provider validation"}
-          {valMode === "hcl2" && "engine: python-hcl2 — syntax only (terraform not available on server)"}
-          {valMode === "none" && "no validation engine available"}
+          {serverMode === "terraform" && `server: terraform available | using: ${selectedMode}`}
+          {serverMode === "hcl2" && `server: hcl2 only (terraform not available) | using: ${selectedMode}`}
+          {serverMode === "none" && "no validation engine available"}
         </div>
       )}
 
@@ -1105,8 +1122,13 @@ function HclReadinessTab({ ctx, region }) {
           }}>
             {validation.valid
               ? `${validation.mode === "hcl2" ? "hcl2 syntax check" : "terraform validate"}: PASSED`
-              : `${validation.mode === "hcl2" ? "hcl2 syntax check" : "terraform validate"}: FAILED`
+              : `${validation.mode === "none" ? "validation" : validation.mode === "hcl2" ? "hcl2 syntax check" : "terraform validate"}: FAILED`
             }
+            {validation.fallback && (
+              <span style={{ color: "#faad14", fontWeight: 400, fontSize: 10, marginLeft: 8 }}>
+                (fallback)
+              </span>
+            )}
           </div>
           {(validation.diagnostics || []).map((d, i) => (
             <div key={i} style={{

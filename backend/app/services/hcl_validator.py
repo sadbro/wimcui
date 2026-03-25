@@ -6,11 +6,12 @@ import tempfile
 import re
 
 
-# Use env var if set (Docker pre-warms to /app/.terraform_cache), else temp dir
+# Use env var if set (Docker sets TF_PLUGIN_CACHE_DIR=/app/.terraform_cache), else temp dir
 PLUGIN_CACHE = os.environ.get("TF_PLUGIN_CACHE_DIR", os.path.join(tempfile.gettempdir(), "wimcui_tf_plugin_cache"))
 os.makedirs(PLUGIN_CACHE, exist_ok=True)
 
-TIMEOUT_INIT = 120   # seconds — first init downloads ~400MB provider
+TIMEOUT_INIT_EXPLICIT = 120   # seconds — when user explicitly picks terraform
+TIMEOUT_INIT_AUTO = 30        # seconds — in auto mode, fail fast and fallback
 TIMEOUT_VALIDATE = 30
 
 # Auto-detect terraform availability at import time
@@ -60,8 +61,8 @@ def _map_to_node_id(resource_addr, reverse):
     return None
 
 
-def _validate_with_terraform(hcl, reverse):
-    """Full terraform init + validate."""
+def _validate_with_terraform(hcl, reverse, init_timeout):
+    """Full terraform init + validate. Returns (result_dict, timed_out_bool)."""
     with tempfile.TemporaryDirectory(prefix="wimcui_tf_") as tmpdir:
         tf_path = os.path.join(tmpdir, "main.tf")
         with open(tf_path, "w") as f:
@@ -77,22 +78,24 @@ def _validate_with_terraform(hcl, reverse):
                 cwd=tmpdir,
                 capture_output=True,
                 text=True,
-                timeout=TIMEOUT_INIT,
+                timeout=init_timeout,
                 env=env,
             )
         except subprocess.TimeoutExpired:
+            return None, True  # signal timeout to caller
+        except FileNotFoundError:
             return {
                 "valid": False,
                 "mode": "terraform",
                 "diagnostics": [{
                     "severity": "error",
-                    "summary": "Terraform init timed out",
-                    "detail": f"Init exceeded {TIMEOUT_INIT}s — possible network issue downloading the AWS provider.",
+                    "summary": "Terraform not found",
+                    "detail": "terraform binary is not installed or not on PATH.",
                     "resource": None,
                     "nodeId": None,
                 }],
                 "raw_stdout": "",
-            }
+            }, False
 
         if init_result.returncode != 0:
             return {
@@ -106,7 +109,7 @@ def _validate_with_terraform(hcl, reverse):
                     "nodeId": None,
                 }],
                 "raw_stdout": init_result.stdout,
-            }
+            }, False
 
         # --- terraform validate -json ---
         try:
@@ -130,7 +133,7 @@ def _validate_with_terraform(hcl, reverse):
                     "nodeId": None,
                 }],
                 "raw_stdout": "",
-            }
+            }, False
 
         # Parse JSON output
         try:
@@ -147,7 +150,7 @@ def _validate_with_terraform(hcl, reverse):
                     "nodeId": None,
                 }],
                 "raw_stdout": val_result.stdout,
-            }
+            }, False
 
         diagnostics = []
         for diag in tf_output.get("diagnostics", []):
@@ -178,7 +181,7 @@ def _validate_with_terraform(hcl, reverse):
             "mode": "terraform",
             "diagnostics": diagnostics,
             "raw_stdout": val_result.stdout,
-        }
+        }, False
 
 
 def _validate_with_hcl2(hcl, reverse):
@@ -194,7 +197,6 @@ def _validate_with_hcl2(hcl, reverse):
     except Exception as e:
         detail = str(e)
 
-        # Try to extract resource context from the error
         resource_addr = _extract_resource_name(detail)
         node_id = _map_to_node_id(resource_addr, reverse) if resource_addr else None
 
@@ -212,12 +214,14 @@ def _validate_with_hcl2(hcl, reverse):
         }
 
 
-def validate_hcl(hcl, reverse=None):
+def validate_hcl(hcl, reverse=None, mode="auto"):
     """
-    Validate HCL using the best available engine.
-    - terraform binary available → full provider-level validation
-    - python-hcl2 available → syntax-only validation
-    - neither → error
+    Validate HCL using the specified engine.
+
+    mode:
+      "auto"      — try terraform (30s timeout), fallback to hcl2 on timeout
+      "terraform" — terraform only (120s timeout), no fallback
+      "hcl2"      — python-hcl2 only
 
     Returns:
         {
@@ -225,15 +229,105 @@ def validate_hcl(hcl, reverse=None):
             "mode": "terraform" | "hcl2" | "none",
             "diagnostics": [...],
             "raw_stdout": str,
+            "fallback": bool,        # true if auto mode fell back to hcl2
         }
     """
     reverse = reverse or {}
 
-    if TF_AVAILABLE:
-        return _validate_with_terraform(hcl, reverse)
+    # --- Explicit hcl2 mode ---
+    if mode == "hcl2":
+        if HCL2_AVAILABLE:
+            result = _validate_with_hcl2(hcl, reverse)
+            result["fallback"] = False
+            return result
+        return {
+            "valid": False,
+            "mode": "none",
+            "diagnostics": [{
+                "severity": "error",
+                "summary": "python-hcl2 not installed",
+                "detail": "The hcl2 validation engine was requested but python-hcl2 is not installed.",
+                "resource": None,
+                "nodeId": None,
+            }],
+            "raw_stdout": "",
+            "fallback": False,
+        }
 
+    # --- Explicit terraform mode ---
+    if mode == "terraform":
+        if TF_AVAILABLE:
+            result, timed_out = _validate_with_terraform(hcl, reverse, TIMEOUT_INIT_EXPLICIT)
+            if timed_out:
+                return {
+                    "valid": False,
+                    "mode": "terraform",
+                    "diagnostics": [{
+                        "severity": "error",
+                        "summary": "Terraform init timed out",
+                        "detail": f"Init exceeded {TIMEOUT_INIT_EXPLICIT}s — possible network or resource issue downloading the AWS provider.",
+                        "resource": None,
+                        "nodeId": None,
+                    }],
+                    "raw_stdout": "",
+                    "fallback": False,
+                }
+            result["fallback"] = False
+            return result
+        return {
+            "valid": False,
+            "mode": "none",
+            "diagnostics": [{
+                "severity": "error",
+                "summary": "Terraform not available",
+                "detail": "The terraform validation engine was requested but terraform binary is not on PATH.",
+                "resource": None,
+                "nodeId": None,
+            }],
+            "raw_stdout": "",
+            "fallback": False,
+        }
+
+    # --- Auto mode: try terraform with short timeout, fallback to hcl2 ---
+    if TF_AVAILABLE:
+        result, timed_out = _validate_with_terraform(hcl, reverse, TIMEOUT_INIT_AUTO)
+        if not timed_out:
+            result["fallback"] = False
+            return result
+
+        # Terraform timed out — fallback to hcl2
+        if HCL2_AVAILABLE:
+            result = _validate_with_hcl2(hcl, reverse)
+            result["fallback"] = True
+            result["diagnostics"].insert(0, {
+                "severity": "warning",
+                "summary": "Fell back to syntax-only validation",
+                "detail": f"terraform init timed out after {TIMEOUT_INIT_AUTO}s. Validated with python-hcl2 (syntax only — attribute-level errors are not checked).",
+                "resource": None,
+                "nodeId": None,
+            })
+            return result
+
+        # Terraform timed out and no hcl2 fallback
+        return {
+            "valid": False,
+            "mode": "none",
+            "diagnostics": [{
+                "severity": "error",
+                "summary": "Terraform init timed out, no fallback available",
+                "detail": f"terraform init exceeded {TIMEOUT_INIT_AUTO}s and python-hcl2 is not installed.",
+                "resource": None,
+                "nodeId": None,
+            }],
+            "raw_stdout": "",
+            "fallback": False,
+        }
+
+    # No terraform — try hcl2
     if HCL2_AVAILABLE:
-        return _validate_with_hcl2(hcl, reverse)
+        result = _validate_with_hcl2(hcl, reverse)
+        result["fallback"] = False
+        return result
 
     return {
         "valid": False,
@@ -246,4 +340,5 @@ def validate_hcl(hcl, reverse=None):
             "nodeId": None,
         }],
         "raw_stdout": "",
+        "fallback": False,
     }

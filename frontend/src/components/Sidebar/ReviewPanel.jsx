@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { buildContext } from "../../config/canvasContext";
 import { consequenceRules, CATEGORY_LABELS } from "../../config/consequenceRules";
+import { generateHCL } from "../../config/hclGenerator";
 
 const MONO = { fontFamily: "'JetBrains Mono', Consolas, monospace", fontWeight: 800 };
 
@@ -40,6 +41,9 @@ function Row({ cols }) {
           ...MONO, fontSize: 12,
           color: c.dim ? "var(--text-muted)" : "var(--text-primary)",
           whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          minWidth: 0,
         }}>
           {c.text ?? "—"}
         </span>
@@ -174,22 +178,22 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
       {lbs.length > 0 && <>
         <SectionHeader title="Load Balancers" />
         <TableHeader cols={[
-          { text: "Name",    width: "120px" },
-          { text: "Type",    width: "80px"  },
-          { text: "Scheme",  width: "90px"  },
-          { text: "Subnets", width: "60px"  },
-          { text: "SG",      width: "auto"  },
+          { text: "Name",    width: "1.4fr" },
+          { text: "Type",    width: "0.8fr" },
+          { text: "Scheme",  width: "1fr"   },
+          { text: "Subnets", width: "0.6fr" },
+          { text: "SG",      width: "1fr"   },
         ]} />
         {lbs.map((n) => {
           const subnetIds = n.data?.config?.subnets || [];
           const isNLB = n.data?.config?.load_balancer_type === "network";
           return (
             <Row key={n.id} cols={[
-              { text: n.data.label,                          width: "120px" },
-              { text: n.data.config?.load_balancer_type,     width: "80px",  dim: true },
-              { text: n.data.config?.internal === "true" ? "internal" : "internet-facing", width: "90px", dim: true },
-              { text: `${subnetIds.length} subnet${subnetIds.length !== 1 ? "s" : ""}`, width: "60px", dim: true },
-              { text: isNLB ? "n/a" : sgNamesForNode(n),    width: "auto",  dim: true },
+              { text: n.data.label,                          width: "1.4fr" },
+              { text: n.data.config?.load_balancer_type,     width: "0.8fr", dim: true },
+              { text: n.data.config?.internal === "true" ? "internal" : "internet-facing", width: "1fr", dim: true },
+              { text: `${subnetIds.length} subnet${subnetIds.length !== 1 ? "s" : ""}`, width: "0.6fr", dim: true },
+              { text: isNLB ? "n/a" : sgNamesForNode(n),    width: "1fr",   dim: true },
             ]} />
           );
         })}
@@ -197,10 +201,10 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
       {securityGroups.length > 0 && <>
         <SectionHeader title="Security Groups" />
         <TableHeader cols={[
-          { text: "Name",   width: "140px" },
-          { text: "In",     width: "40px"  },
-          { text: "Out",    width: "40px"  },
-          { text: "Nodes",  width: "auto"  },
+          { text: "Name",   width: "1.4fr" },
+          { text: "In",     width: "0.4fr" },
+          { text: "Out",    width: "0.4fr" },
+          { text: "Nodes",  width: "1.2fr" },
         ]} />
         {securityGroups.map((sg) => {
           const assignedNodes = [...ec2, ...rds, ...lbs].filter(
@@ -219,12 +223,12 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
           });
           return (
             <Row key={sg.id} cols={[
-              { text: sg.name,                    width: "140px" },
-              { text: `${totalIn}`,               width: "40px",  dim: true },
-              { text: `${totalOut}`,              width: "40px",  dim: true },
+              { text: sg.name,                    width: "1.4fr" },
+              { text: `${totalIn}`,               width: "0.4fr", dim: true },
+              { text: `${totalOut}`,              width: "0.4fr", dim: true },
               { text: assignedNodes.length > 0
                   ? assignedNodes.map((n) => n.data.label).join(", ")
-                  : "unassigned",                 width: "auto",  dim: true },
+                  : "unassigned",                 width: "1.2fr", dim: true },
             ]} />
           );
         })}
@@ -373,17 +377,17 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
       {dynamo.length > 0 && <>
         <SectionHeader title="DynamoDB Tables" />
         <TableHeader cols={[
-          { text: "Name",    width: "140px" },
-          { text: "Billing", width: "110px" },
-          { text: "PK",      width: "90px"  },
-          { text: "PITR",    width: "auto"  },
+          { text: "Name",    width: "1.3fr" },
+          { text: "Billing", width: "1fr"   },
+          { text: "PK",      width: "1fr"   },
+          { text: "PITR",    width: "0.5fr" },
         ]} />
         {dynamo.map((n) => (
           <Row key={n.id} cols={[
-            { text: n.data.label,                           width: "140px" },
-            { text: n.data.config?.billing_mode,            width: "110px", dim: true },
-            { text: `${n.data.config?.hash_key || "—"} (${n.data.config?.hash_key_type || "?"})`, width: "90px", dim: true },
-            { text: n.data.config?.point_in_time_recovery === "true" ? "on" : "⚠ off", width: "auto", dim: n.data.config?.point_in_time_recovery === "true" },
+            { text: n.data.label,                           width: "1.3fr" },
+            { text: n.data.config?.billing_mode,            width: "1fr",   dim: true },
+            { text: `${n.data.config?.hash_key || "—"} (${n.data.config?.hash_key_type || "?"})`, width: "1fr", dim: true },
+            { text: n.data.config?.point_in_time_recovery === "true" ? "on" : "⚠ off", width: "0.5fr", dim: n.data.config?.point_in_time_recovery === "true" },
           ]} />
         ))}
       </>}
@@ -439,15 +443,15 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
       {secrets.length > 0 && <>
         <SectionHeader title="Secrets Manager" />
         <TableHeader cols={[
-          { text: "Name",     width: "160px" },
-          { text: "Rotation", width: "80px"  },
-          { text: "KMS Key",  width: "auto"  },
+          { text: "Name",     width: "1.4fr" },
+          { text: "Rotation", width: "0.8fr" },
+          { text: "KMS Key",  width: "1fr"   },
         ]} />
         {secrets.map((n) => (
           <Row key={n.id} cols={[
-            { text: n.data.label,                                                        width: "160px" },
-            { text: n.data.config?.rotation_enabled === "true" ? "enabled" : "⚠ off",   width: "80px",  dim: n.data.config?.rotation_enabled === "true" },
-            { text: n.data.config?.kms_key?.trim() || "⚠ default",                       width: "auto",  dim: !!n.data.config?.kms_key?.trim() },
+            { text: n.data.label,                                                        width: "1.4fr" },
+            { text: n.data.config?.rotation_enabled === "true" ? "enabled" : "⚠ off",   width: "0.8fr", dim: n.data.config?.rotation_enabled === "true" },
+            { text: n.data.config?.kms_key?.trim() || "⚠ default",                       width: "1fr",   dim: !!n.data.config?.kms_key?.trim() },
           ]} />
         ))}
       </>}
@@ -473,18 +477,18 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
       {assocEdges.length > 0 && <>
         <SectionHeader title="Associations" />
         <TableHeader cols={[
-          { text: "Source", width: "160px" },
+          { text: "Source", width: "1.2fr" },
           { text: "",       width: "24px"  },
-          { text: "Target", width: "auto"  },
+          { text: "Target", width: "1.2fr" },
         ]} />
         {assocEdges.map((e) => {
           const src = nodeById(e.source);
           const tgt = nodeById(e.target);
           return (
             <Row key={e.id} cols={[
-              { text: src?.data?.label, width: "160px" },
+              { text: src?.data?.label, width: "1.2fr" },
               { text: "->",             width: "24px",  dim: true },
-              { text: tgt?.data?.label, width: "auto",  dim: true },
+              { text: tgt?.data?.label, width: "1.2fr", dim: true },
             ]} />
           );
         })}
@@ -590,7 +594,11 @@ function buildHclChecks(ctx) {
   const sns     = ctx.byResourceType?.["SNS"]            || [];
   const evb     = ctx.byResourceType?.["EventBridge"]    || [];
   const secrets = ctx.byResourceType?.["SecretsManager"] || [];
-  const apigws  = ctx.byResourceType?.["APIGateway"]     || [];
+  const apigws       = ctx.byResourceType?.["APIGateway"]     || [];
+  const elasticaches = ctx.byResourceType?.["ElastiCache"]    || [];
+  const ecrs         = ctx.byResourceType?.["ECR"]            || [];
+  const route53s     = ctx.byResourceType?.["Route53"]        || [];
+  const kinesises    = ctx.byResourceType?.["Kinesis"]        || [];
 
   // Hard fails — Terraform will not apply
   rts.forEach((rt) => {
@@ -828,8 +836,54 @@ function buildHclChecks(ctx) {
       checks.push({ ok: false, warn: false, message: `${n.data.label} is missing API type` });
   });
 
+  // ─── ElastiCache hard fails ────────────────────────────────────────────────
+  elasticaches.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.engine)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing engine (Redis or Memcached)` });
+    if (!cfg.node_type?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing node type` });
+    const ecSubnets = cfg.subnets || [];
+    if (ecSubnets.length < 2)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} needs at least 2 subnets in different AZs — required for subnet group` });
+    if (ecSubnets.length >= 2) {
+      const azs = ecSubnets.map((id) => nodeById(id)?.data?.config?.availability_zone).filter(Boolean);
+      if (new Set(azs).size < 2)
+        checks.push({ ok: false, warn: false, message: `${n.data.label} subnets must be in at least 2 different Availability Zones` });
+    }
+  });
+
+  // ─── ECR hard fails ──────────────────────────────────────────────────────
+  ecrs.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.repository_name?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a repository name` });
+  });
+
+  // ─── Route 53 hard fails ─────────────────────────────────────────────────
+  route53s.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.hosted_zone_name?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a hosted zone name` });
+    if (!cfg.zone_type)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing zone type (public/private)` });
+    if (cfg.zone_type === "private" && !cfg.vpcId)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is a private zone but has no VPC selected — AWS requires at least one VPC association` });
+  });
+
+  // ─── Kinesis hard fails ──────────────────────────────────────────────────
+  kinesises.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.stream_name?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a stream name` });
+    if (!cfg.stream_mode)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing capacity mode (Provisioned/On-Demand)` });
+    if (cfg.stream_mode === "PROVISIONED" && (!cfg.shard_count || parseInt(cfg.shard_count, 10) < 1))
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is provisioned but has no shard count — at least 1 shard is required` });
+  });
+
   // ─── Orphan check — exclude intentionally edgeless global services ─────────
-  const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "SNS", "EventBridge", "SecretsManager"];
+  const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "SNS", "EventBridge", "SecretsManager", "ECR"];
   nodes.forEach((n) => {
     if (EDGELESS_TYPES.includes(n.data?.resourceType)) return;
     if (!hasAnyEdge(n.id))
@@ -842,8 +896,83 @@ function buildHclChecks(ctx) {
   return checks;
 }
 
-function HclReadinessTab({ ctx }) {
+function HclReadinessTab({ ctx, region }) {
   const checks = buildHclChecks(ctx);
+  const [hcl, setHcl] = useState(null);
+  const [reverseMap, setReverseMap] = useState({});
+  const [genWarnings, setGenWarnings] = useState([]);
+  const [copied, setCopied] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validation, setValidation] = useState(null); // { valid, diagnostics }
+  const codeRef = useRef(null);
+
+  const hasHardErrors = checks.some((c) => !c.ok && !c.warn);
+
+  const handleGenerate = () => {
+    const result = generateHCL(ctx, region);
+    setHcl(result.hcl);
+    setReverseMap(result.reverse || {});
+    setGenWarnings(result.warnings || []);
+    setValidation(null);
+  };
+
+  const handleValidate = async () => {
+    if (!hcl) return;
+    setValidating(true);
+    setValidation(null);
+    try {
+      const res = await fetch("/api/validate-hcl", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hcl, reverse: reverseMap }),
+      });
+      const data = await res.json();
+      setValidation(data);
+    } catch (err) {
+      setValidation({
+        valid: false,
+        diagnostics: [{
+          severity: "error",
+          summary: "Backend unreachable",
+          detail: "Could not connect to the backend server. Is it running on port 5000?",
+          resource: null,
+          nodeId: null,
+        }],
+      });
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!hcl) return;
+    try {
+      await navigator.clipboard.writeText(hcl);
+    } catch {
+      // Fallback for non-HTTPS contexts
+      const textarea = document.createElement("textarea");
+      textarea.value = hcl;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownload = () => {
+    if (!hcl) return;
+    const blob = new Blob([hcl], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "main.tf";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div style={{ marginTop: 8 }}>
@@ -871,6 +1000,134 @@ function HclReadinessTab({ ctx }) {
           </div>
         );
       })}
+
+      {/* Generate button */}
+      <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
+        <button
+          onClick={handleGenerate}
+          disabled={hasHardErrors}
+          style={{
+            ...MONO, fontSize: 12, padding: "8px 16px",
+            background: hasHardErrors ? "var(--bg-elevated)" : "var(--accent)",
+            color: hasHardErrors ? "var(--text-muted)" : "#fff",
+            border: "1px solid var(--border)",
+            borderRadius: 4, cursor: hasHardErrors ? "not-allowed" : "pointer",
+            opacity: hasHardErrors ? 0.5 : 1,
+          }}
+        >
+          {hasHardErrors ? "Fix errors to generate" : "Generate HCL"}
+        </button>
+
+        {hcl && (
+          <>
+            <button onClick={handleCopy} style={{
+              ...MONO, fontSize: 12, padding: "8px 12px",
+              background: "var(--bg-elevated)", color: "var(--text-primary)",
+              border: "1px solid var(--border)", borderRadius: 4, cursor: "pointer",
+            }}>
+              {copied ? "Copied!" : "Copy"}
+            </button>
+            <button onClick={handleDownload} style={{
+              ...MONO, fontSize: 12, padding: "8px 12px",
+              background: "var(--bg-elevated)", color: "var(--text-primary)",
+              border: "1px solid var(--border)", borderRadius: 4, cursor: "pointer",
+            }}>
+              Download .tf
+            </button>
+            <button
+              onClick={handleValidate}
+              disabled={validating}
+              style={{
+                ...MONO, fontSize: 12, padding: "8px 12px",
+                background: validating ? "var(--bg-elevated)" : "#1a1a2e",
+                color: validating ? "var(--text-muted)" : "#a78bfa",
+                border: "1px solid #a78bfa44",
+                borderRadius: 4,
+                cursor: validating ? "wait" : "pointer",
+                opacity: validating ? 0.6 : 1,
+              }}
+            >
+              {validating ? "Validating..." : "Terraform Validate"}
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Reference warnings */}
+      {genWarnings.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          {genWarnings.map((w, i) => (
+            <div key={i} style={{
+              ...MONO, fontSize: 11, color: "#fa8c16",
+              padding: "4px 0", lineHeight: 1.5,
+            }}>
+              [ref] {w}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Terraform validation results */}
+      {validation && (
+        <div style={{
+          marginTop: 12, padding: 12,
+          background: validation.valid ? "#0a2e1a" : "#2e0a0a",
+          border: `1px solid ${validation.valid ? "#2d6a4f" : "#6a2d2d"}`,
+          borderRadius: 4,
+        }}>
+          <div style={{
+            ...MONO, fontSize: 12, fontWeight: 600,
+            color: validation.valid ? "#52c41a" : "#ff4d4f",
+            marginBottom: validation.diagnostics?.length ? 8 : 0,
+          }}>
+            {validation.valid ? "terraform validate: PASSED" : "terraform validate: FAILED"}
+          </div>
+          {(validation.diagnostics || []).map((d, i) => (
+            <div key={i} style={{
+              ...MONO, fontSize: 11, lineHeight: 1.5,
+              padding: "6px 0",
+              borderTop: i > 0 ? "1px solid rgba(255,255,255,0.06)" : "none",
+              color: d.severity === "error" ? "#ff7875" : "#faad14",
+            }}>
+              <div style={{ fontWeight: 600 }}>
+                [{d.severity}] {d.summary}
+                {d.nodeId && (
+                  <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
+                    {" "}(node: {d.nodeId})
+                  </span>
+                )}
+              </div>
+              {d.detail && (
+                <div style={{ color: "var(--text-muted)", marginTop: 2, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                  {d.detail}
+                </div>
+              )}
+              {d.resource && (
+                <div style={{ color: "var(--text-muted)", marginTop: 2 }}>
+                  Resource: {d.resource}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* HCL output */}
+      {hcl && (
+        <pre ref={codeRef} style={{
+          ...MONO, fontSize: 11, lineHeight: 1.5,
+          marginTop: 12, padding: 12,
+          background: "var(--bg-base)",
+          border: "1px solid var(--border)",
+          borderRadius: 4,
+          overflowX: "auto",
+          whiteSpace: "pre",
+          color: "var(--text-primary)",
+          maxHeight: "60vh",
+        }}>
+          {hcl}
+        </pre>
+      )}
     </div>
   );
 }
@@ -951,7 +1208,7 @@ export default function ReviewPanel({ nodes, edges, onClose, region, roles = [],
       <div style={{ flex: 1, overflowY: "auto", padding: "0 18px 18px" }}>
         {activeTab === 0 && <SummaryTab ctx={ctx} roles={roles} securityGroups={securityGroups} />}
         {activeTab === 1 && <ConsequencesTab ctx={ctx} />}
-        {activeTab === 2 && <HclReadinessTab ctx={ctx} />}
+        {activeTab === 2 && <HclReadinessTab ctx={ctx} region={region} />}
       </div>
     </div>
   );

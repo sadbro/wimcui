@@ -455,7 +455,7 @@ export const consequenceRules = [
     category: "smell",
     check: ({ nodes, edges }) => {
       // These types are intentionally edgeless — accessed via IAM policies, not network edges
-      const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "SNS", "EventBridge", "SecretsManager", "Lambda"];
+      const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "SNS", "EventBridge", "SecretsManager", "ECR", "Route53"];
       return nodes
         .filter((n) => {
           if (EDGELESS_TYPES.includes(n.data?.resourceType)) return false;
@@ -1386,6 +1386,295 @@ export const consequenceRules = [
         }));
       }
       return [];
+    },
+  },
+
+
+  // ─── ElastiCache ─────────────────────────────────────────────────────────
+
+  {
+    id: "elasticache_no_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const clusters = byResourceType["ElastiCache"] || [];
+      return clusters
+        .filter((n) => !n.data?.config?.name?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} is missing a cluster name` }));
+    },
+  },
+
+  {
+    id: "elasticache_no_encryption",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const clusters = byResourceType["ElastiCache"] || [];
+      return clusters
+        .filter((n) => n.data?.config?.at_rest_encryption !== "true")
+        .map((n) => ({ node: n, message: `${n.data.label} has no encryption at rest — enable for production workloads` }));
+    },
+  },
+
+  {
+    id: "elasticache_no_tls",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const clusters = byResourceType["ElastiCache"] || [];
+      return clusters
+        .filter((n) => n.data?.config?.in_transit_encryption !== "true")
+        .map((n) => ({ node: n, message: `${n.data.label} has no in-transit encryption (TLS) — data between clients and cache is unencrypted` }));
+    },
+  },
+
+  {
+    id: "elasticache_no_multi_az",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const clusters = byResourceType["ElastiCache"] || [];
+      return clusters
+        .filter((n) => n.data?.config?.engine === "redis" && n.data?.config?.multi_az !== "true")
+        .map((n) => ({ node: n, message: `${n.data.label} is Redis without Multi-AZ — a single node has no automatic failover`, warn: true }));
+    },
+  },
+
+  {
+    id: "elasticache_no_auth",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const clusters = byResourceType["ElastiCache"] || [];
+      return clusters
+        .filter((n) =>
+          n.data?.config?.engine === "redis" &&
+          n.data?.config?.in_transit_encryption === "true" &&
+          !n.data?.config?.auth_token?.trim()
+        )
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has TLS enabled but no AUTH token — Redis is accessible to anyone who can reach the endpoint`,
+        }));
+    },
+  },
+
+  {
+    id: "elasticache_no_consumers",
+    category: "connectivity",
+    check: ({ byResourceType, trafficNeighbors }) => {
+      const clusters = byResourceType["ElastiCache"] || [];
+      return clusters
+        .filter((n) => !trafficNeighbors(n.id).some((nb) =>
+          ["EC2", "ECS", "Lambda"].includes(nb?.data?.resourceType)
+        ))
+        .map((n) => ({ node: n, message: `${n.data.label} has no consumers (EC2/ECS/Lambda) — cache is unreachable` }));
+    },
+  },
+
+  {
+    id: "elasticache_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const clusters = byResourceType["ElastiCache"] || [];
+      return clusters.map((n) => ({
+        node: n,
+        message: `${n.data.label} (${n.data.config?.node_type || "?"}) — billed per node-hour; Redis Multi-AZ doubles cost; data transfer within VPC is free`,
+      }));
+    },
+  },
+
+  // ─── ECR ─────────────────────────────────────────────────────────────────
+
+  {
+    id: "ecr_no_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const repos = byResourceType["ECR"] || [];
+      return repos
+        .filter((n) => !n.data?.config?.repository_name?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} is missing a repository name` }));
+    },
+  },
+
+  {
+    id: "ecr_mutable_tags",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const repos = byResourceType["ECR"] || [];
+      return repos
+        .filter((n) => n.data?.config?.image_tag_mutability !== "IMMUTABLE")
+        .map((n) => ({ node: n, message: `${n.data.label} uses mutable image tags — tags can be overwritten, breaking reproducible deployments`, warn: true }));
+    },
+  },
+
+  {
+    id: "ecr_no_scan",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const repos = byResourceType["ECR"] || [];
+      return repos
+        .filter((n) => n.data?.config?.scan_on_push !== "true")
+        .map((n) => ({ node: n, message: `${n.data.label} has no vulnerability scanning — enable scan_on_push to detect CVEs on every image push` }));
+    },
+  },
+
+  {
+    id: "ecr_no_lifecycle",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const repos = byResourceType["ECR"] || [];
+      return repos
+        .filter((n) => !n.data?.config?.lifecycle_policy || n.data?.config?.lifecycle_policy === "none")
+        .map((n) => ({ node: n, message: `${n.data.label} has no lifecycle policy — images accumulate indefinitely, storage costs grow unbounded` }));
+    },
+  },
+
+  {
+    id: "ecr_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const repos = byResourceType["ECR"] || [];
+      return repos.map((n) => ({
+        node: n,
+        message: `${n.data.label} — $0.10/GB/month storage; data transfer to ECS/Lambda in same region is free; cross-region pulls incur transfer costs`,
+      }));
+    },
+  },
+
+  // ─── Route53 ─────────────────────────────────────────────────────────────
+
+  {
+    id: "route53_no_zone",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const zones = byResourceType["Route53"] || [];
+      return zones
+        .filter((n) => !n.data?.config?.hosted_zone_name?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} is missing a hosted zone name` }));
+    },
+  },
+
+  {
+    id: "route53_no_target",
+    category: "connectivity",
+    check: ({ byResourceType, trafficNeighbors }) => {
+      const zones = byResourceType["Route53"] || [];
+      return zones
+        .filter((n) => trafficNeighbors(n.id).length === 0)
+        .map((n) => ({ node: n, message: `${n.data.label} has no routing target — connect to ALB, APIGateway, or EC2` }));
+    },
+  },
+
+  {
+    id: "route53_failover_no_health_check",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const zones = byResourceType["Route53"] || [];
+      return zones
+        .filter((n) =>
+          n.data?.config?.routing_policy === "failover" &&
+          n.data?.config?.health_check_enabled !== "true"
+        )
+        .map((n) => ({ node: n, message: `${n.data.label} uses failover routing but has no health check — failover will never trigger without health checks` }));
+    },
+  },
+
+  {
+    id: "route53_high_ttl",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const zones = byResourceType["Route53"] || [];
+      return zones
+        .filter((n) => {
+          const ttl = parseInt(n.data?.config?.ttl, 10);
+          return !isNaN(ttl) && ttl > 300;
+        })
+        .map((n) => ({ node: n, message: `${n.data.label} TTL is ${n.data.config.ttl}s — high TTL slows DNS failover; use ≤300s for production`, warn: true }));
+    },
+  },
+
+  {
+    id: "route53_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const zones = byResourceType["Route53"] || [];
+      return zones.map((n) => ({
+        node: n,
+        message: `${n.data.label} — $0.50/hosted zone/month; $0.40/million queries; health checks $0.50–$0.75/check/month`,
+      }));
+    },
+  },
+
+  // ─── Kinesis ─────────────────────────────────────────────────────────────
+
+  {
+    id: "kinesis_no_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const streams = byResourceType["Kinesis"] || [];
+      return streams
+        .filter((n) => !n.data?.config?.stream_name?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} is missing a stream name` }));
+    },
+  },
+
+  {
+    id: "kinesis_no_consumers",
+    category: "connectivity",
+    check: ({ byResourceType, trafficNeighbors }) => {
+      const streams = byResourceType["Kinesis"] || [];
+      return streams
+        .filter((n) => !trafficNeighbors(n.id).some((nb) =>
+          ["Lambda"].includes(nb?.data?.resourceType)
+        ))
+        .map((n) => ({ node: n, message: `${n.data.label} has no consumers (Lambda) — stream records will expire unprocessed` }));
+    },
+  },
+
+  {
+    id: "kinesis_no_producers",
+    category: "connectivity",
+    check: ({ byResourceType, trafficEdges, nodeById }) => {
+      const streams = byResourceType["Kinesis"] || [];
+      return streams
+        .filter((n) => !trafficEdges.some((e) => e.target === n.id))
+        .map((n) => ({ node: n, message: `${n.data.label} has no producers — no resource is writing to this stream` }));
+    },
+  },
+
+  {
+    id: "kinesis_no_encryption",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const streams = byResourceType["Kinesis"] || [];
+      return streams
+        .filter((n) => n.data?.config?.encryption !== "KMS")
+        .map((n) => ({ node: n, message: `${n.data.label} has no KMS encryption — stream data is stored unencrypted at rest`, warn: true }));
+    },
+  },
+
+  {
+    id: "kinesis_short_retention",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const streams = byResourceType["Kinesis"] || [];
+      return streams
+        .filter((n) => {
+          const h = parseInt(n.data?.config?.retention_hours, 10);
+          return !isNaN(h) && h <= 24;
+        })
+        .map((n) => ({ node: n, message: `${n.data.label} has 24-hour retention (minimum) — consumer outages longer than 24h will lose records`, warn: true }));
+    },
+  },
+
+  {
+    id: "kinesis_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const streams = byResourceType["Kinesis"] || [];
+      return streams.map((n) => {
+        const mode = n.data?.config?.stream_mode || "PROVISIONED";
+        const note = mode === "ON_DEMAND"
+          ? "On-Demand: $0.08/million records + $0.04/GB; no shard management"
+          : `Provisioned: $0.015/shard-hour (${n.data?.config?.shard_count || "?"} shards); extended retention adds cost`;
+        return { node: n, message: `${n.data.label} — ${note}` };
+      });
     },
   },
 

@@ -921,6 +921,294 @@ export const resourceFields = {
     },
     ...baseFields,
   ],
+
+  // ─── ElastiCache ──────────────────────────────────────────────────────────
+  ElastiCache: [
+    {
+      key: "subnets",
+      label: "Subnets",
+      type: "multi-select",
+      parentType: "Subnet",
+      required: true,
+      minItems: 2,
+      description: "Select subnets in at least 2 AZs — required for subnet group",
+    },
+    {
+      key: "sg_ids",
+      label: "Security Groups",
+      type: "sg-select",
+    },
+    {
+      key: "engine",
+      label: "Engine",
+      type: "select",
+      options: ["redis", "memcached"],
+      optionLabels: {
+        redis:      "Redis — persistent, pub/sub, Lua scripting",
+        memcached:  "Memcached — simple, multi-threaded, no persistence",
+      },
+      required: true,
+    },
+    {
+      key: "engine_version",
+      label: "Engine Version",
+      type: "text",
+      placeholder: "7.0",
+      required: false,
+    },
+    {
+      key: "node_type",
+      label: "Node Type",
+      type: "select",
+      options: ["cache.t3.micro", "cache.t3.small", "cache.t3.medium",
+                "cache.r6g.large", "cache.r6g.xlarge", "cache.r6g.2xlarge"],
+      required: true,
+    },
+    {
+      key: "num_cache_nodes",
+      label: "Number of Nodes",
+      type: "text",
+      placeholder: "1",
+      required: true,
+      validate: (value) => {
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 1) return "Must be at least 1 node";
+        return null;
+      },
+    },
+    {
+      key: "multi_az",
+      label: "Multi-AZ",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { false: "Disabled", true: "Enabled (Redis only)" },
+      required: false,
+    },
+    {
+      key: "at_rest_encryption",
+      label: "Encryption at Rest",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { false: "Disabled", true: "Enabled" },
+      required: false,
+    },
+    {
+      key: "in_transit_encryption",
+      label: "Encryption in Transit (TLS)",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { false: "Disabled", true: "Enabled" },
+      required: false,
+    },
+    {
+      key: "auth_token",
+      label: "Redis AUTH Token",
+      type: "text",
+      placeholder: "min 16 chars, no spaces",
+      required: false,
+      visibleWhen: (form) => form.engine === "redis" && form.in_transit_encryption === "true",
+      validate: (value) => {
+        if (!value) return null;
+        if (value.length < 16) return "AUTH token must be at least 16 characters";
+        if (/\s/.test(value)) return "AUTH token cannot contain spaces";
+        return null;
+      },
+      description: "Redis AUTH password — required when in-transit encryption is enabled in production",
+    },
+    ...baseFields,
+  ],
+
+  // ─── ECR ──────────────────────────────────────────────────────────────────
+  ECR: [
+    {
+      key: "repository_name",
+      label: "Repository Name",
+      type: "text",
+      placeholder: "my-app/api",
+      required: true,
+      validate: (value) => {
+        if (!/^[a-z0-9._/-]{2,256}$/.test(value))
+          return "Repository name must be 2–256 lowercase chars: letters, numbers, ., _, -, /";
+        return null;
+      },
+    },
+    {
+      key: "image_tag_mutability",
+      label: "Image Tag Mutability",
+      type: "select",
+      options: ["MUTABLE", "IMMUTABLE"],
+      optionLabels: {
+        MUTABLE:   "Mutable — tags can be overwritten (not recommended for prod)",
+        IMMUTABLE: "Immutable — tags are locked, forces unique versioning",
+      },
+      required: true,
+    },
+    {
+      key: "scan_on_push",
+      label: "Scan on Push",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { false: "Disabled", true: "Enabled — scans for CVEs on push" },
+      required: false,
+    },
+    {
+      key: "encryption_type",
+      label: "Encryption Type",
+      type: "select",
+      options: ["AES256", "KMS"],
+      optionLabels: {
+        AES256: "AES-256 — AWS managed key",
+        KMS:    "KMS — customer managed key",
+      },
+      required: false,
+    },
+    {
+      key: "lifecycle_policy",
+      label: "Lifecycle Policy",
+      type: "select",
+      options: ["none", "keep_last_10", "keep_last_30", "expire_untagged_7d"],
+      optionLabels: {
+        none:              "None — images accumulate indefinitely",
+        keep_last_10:      "Keep last 10 tagged images",
+        keep_last_30:      "Keep last 30 tagged images",
+        expire_untagged_7d: "Expire untagged images after 7 days",
+      },
+      required: false,
+    },
+    ...baseFields,
+  ],
+
+  // ─── Route53 ──────────────────────────────────────────────────────────────
+  Route53: [
+    {
+      key: "hosted_zone_name",
+      label: "Hosted Zone Name",
+      type: "text",
+      placeholder: "example.com",
+      required: true,
+      validate: (value) => {
+        if (!value?.trim()) return "Hosted zone name is required";
+        if (!/^([a-z0-9-]+\.)+[a-z]{2,}\.?$/.test(value.toLowerCase()))
+          return "Must be a valid domain name (e.g. example.com)";
+        return null;
+      },
+    },
+    {
+      key: "zone_type",
+      label: "Zone Type",
+      type: "select",
+      options: ["public", "private"],
+      optionLabels: {
+        public:  "Public — resolves from the internet",
+        private: "Private — resolves only within VPC",
+      },
+      required: true,
+    },
+    {
+      key: "record_type",
+      label: "Primary Record Type",
+      type: "select",
+      options: ["A", "CNAME", "ALIAS", "AAAA"],
+      required: false,
+    },
+    {
+      key: "routing_policy",
+      label: "Routing Policy",
+      type: "select",
+      options: ["simple", "weighted", "latency", "failover", "geolocation"],
+      required: false,
+    },
+    {
+      key: "ttl",
+      label: "TTL (seconds)",
+      type: "text",
+      placeholder: "300",
+      required: false,
+      validate: (value) => {
+        if (!value) return null;
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 0) return "TTL must be a non-negative integer";
+        return null;
+      },
+    },
+    {
+      key: "health_check_enabled",
+      label: "Health Check",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { false: "Disabled", true: "Enabled" },
+      required: false,
+    },
+    ...baseFields,
+  ],
+
+  // ─── Kinesis ──────────────────────────────────────────────────────────────
+  Kinesis: [
+    {
+      key: "stream_name",
+      label: "Stream Name",
+      type: "text",
+      placeholder: "my-data-stream",
+      required: true,
+      validate: (value) => {
+        if (!/^[a-zA-Z0-9_.-]{1,128}$/.test(value))
+          return "Stream name must be 1–128 chars: letters, numbers, _, ., -";
+        return null;
+      },
+    },
+    {
+      key: "stream_mode",
+      label: "Capacity Mode",
+      type: "select",
+      options: ["PROVISIONED", "ON_DEMAND"],
+      optionLabels: {
+        PROVISIONED: "Provisioned — fixed shard count, predictable cost",
+        ON_DEMAND:   "On-Demand — auto-scales, pay per throughput",
+      },
+      required: true,
+    },
+    {
+      key: "shard_count",
+      label: "Shard Count (Provisioned only)",
+      type: "text",
+      placeholder: "1",
+      required: false,
+      visibleWhen: (form) => form.stream_mode === "PROVISIONED",
+      validate: (value) => {
+        if (!value) return null;
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 1) return "Must have at least 1 shard";
+        return null;
+      },
+    },
+    {
+      key: "retention_hours",
+      label: "Retention Period (hours)",
+      type: "select",
+      options: ["24", "48", "72", "168", "720", "8760"],
+      optionLabels: {
+        "24":   "24 hours (default, minimum)",
+        "48":   "48 hours",
+        "72":   "72 hours",
+        "168":  "7 days",
+        "720":  "30 days",
+        "8760": "365 days (maximum)",
+      },
+      required: false,
+    },
+    {
+      key: "encryption",
+      label: "Server-Side Encryption",
+      type: "select",
+      options: ["NONE", "KMS"],
+      optionLabels: {
+        NONE: "None",
+        KMS:  "KMS — encrypts data at rest",
+      },
+      required: false,
+    },
+    ...baseFields,
+  ],
 };
 
 export const hasConfig = (type) => !!resourceFields[type];

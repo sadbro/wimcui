@@ -248,24 +248,19 @@ export default function ResourcePanel({
               title={title}
               style={{
                 flex: 1,
-                padding: "6px 0",
+                padding: "8px 0",
                 background: "var(--bg-elevated)",
                 border: "1px solid var(--border)",
                 borderRadius: 6,
                 cursor: disabled ? "default" : "pointer",
                 opacity: disabled ? 0.35 : 1,
-                fontSize: 14,
+                fontSize: 16,
                 lineHeight: 1,
                 color: "var(--text-secondary)",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 2,
                 transition: "border-color 0.15s, color 0.15s",
               }}
             >
-              <span style={{ fontSize: 13 }}>{icon}</span>
-              <span style={{ fontSize: 8, ...MONO, letterSpacing: 0.5, textTransform: "uppercase" }}>{label}</span>
+              {icon}
             </button>
           ))}
         </div>

@@ -14,13 +14,20 @@
  */
 
 export const trafficRules = {
-  EC2:          { allowedSources: ["EC2", "RDS", "LoadBalancer", "Public", "ECS", "Lambda", "APIGateway"], allowedTargets: ["EC2", "RDS", "LoadBalancer", "ECS"] },
-  RDS:          { allowedSources: ["EC2", "ECS", "Lambda"],                                               allowedTargets: ["EC2"] },
-  LoadBalancer: { allowedSources: ["Public", "EC2", "APIGateway"],                                        allowedTargets: ["EC2", "ECS", "Lambda"] },
-  Public:       { allowedSources: [],                                                                      allowedTargets: ["EC2", "LoadBalancer", "ECS", "APIGateway"] },
-  ECS:          { allowedSources: ["LoadBalancer", "EC2", "Public", "Lambda", "APIGateway"],               allowedTargets: ["RDS", "EC2"] }, // SQS/DynamoDB via IAM
-  Lambda:       { allowedSources: ["APIGateway", "LoadBalancer"],                                          allowedTargets: ["RDS", "ECS"] }, // SQS/DynamoDB via IAM
-  APIGateway:   { allowedSources: ["Public"],                                                              allowedTargets: ["Lambda", "ECS", "EC2"] },
+  // ── Compute ─────────────────────────────────────────────────────────────
+  EC2:          { allowedSources: ["EC2", "RDS", "LoadBalancer", "Public", "ECS", "Lambda", "APIGateway", "Route53"], allowedTargets: ["EC2", "RDS", "LoadBalancer", "ECS", "ElastiCache", "Kinesis"] },
+  RDS:          { allowedSources: ["EC2", "ECS", "Lambda"],                                                           allowedTargets: ["EC2"] },
+  LoadBalancer: { allowedSources: ["Public", "EC2", "Route53"],                                                       allowedTargets: ["EC2", "ECS", "Lambda"] }, // APIGateway VPC Link deferred
+  ECS:          { allowedSources: ["LoadBalancer", "EC2", "Public", "Lambda", "APIGateway"],                          allowedTargets: ["RDS", "EC2", "ElastiCache", "Kinesis"] }, // IAM: SQS/DynamoDB/SNS/EventBridge/S3
+  // ── Serverless ───────────────────────────────────────────────────────────
+  Lambda:       { allowedSources: ["APIGateway", "LoadBalancer", "Kinesis"],                                          allowedTargets: ["RDS", "ECS", "ElastiCache", "EC2", "Kinesis"] }, // IAM: SQS/DynamoDB/SNS/EventBridge/S3
+  APIGateway:   { allowedSources: ["Public", "Route53"],                                                              allowedTargets: ["Lambda", "ECS", "EC2"] },
+  // ── Network entry points ─────────────────────────────────────────────────
+  Public:       { allowedSources: [],                                                                                  allowedTargets: ["EC2", "LoadBalancer", "ECS", "APIGateway", "Route53"] },
+  Route53:      { allowedSources: ["Public"],                                                                          allowedTargets: ["LoadBalancer", "APIGateway", "EC2"] }, // DNS routing — CloudFront added when registered
+  // ── Data & Caching ───────────────────────────────────────────────────────
+  ElastiCache:  { allowedSources: ["EC2", "ECS", "Lambda"],                                                           allowedTargets: [] },   // cache — receives traffic, never initiates
+  Kinesis:      { allowedSources: ["EC2", "ECS", "Lambda"],                                                           allowedTargets: ["Lambda"] }, // producers write, Lambda consumes
   // Infrastructure resources — no traffic edges
   IGW:          null,
   NATGateway:   null,
@@ -34,6 +41,7 @@ export const trafficRules = {
   SNS:            null,
   EventBridge:    null,
   SecretsManager: null,
+  ECR:            null,  // pulled by ECS/Lambda at deploy time, not network traffic
 };
 
 /**

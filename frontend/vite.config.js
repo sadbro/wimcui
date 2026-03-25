@@ -6,13 +6,13 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // In dev, proxy /graph/* and /api/* to Flask on 5000
+      // In dev, proxy /graph/* and /api/* to Flask on 8000
       "/graph": {
-        target: "http://localhost:5000",
+        target: "http://localhost:8000",
         changeOrigin: true,
       },
       "/api": {
-        target: "http://localhost:5000",
+        target: "http://localhost:8000",
         changeOrigin: true,
       },
     },

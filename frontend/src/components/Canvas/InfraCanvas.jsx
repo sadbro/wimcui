@@ -16,10 +16,14 @@ import { hasConfig, getRequiredParents, resourceFields } from "../../config/reso
 import { validateTrafficConnection } from "../../config/trafficRules";
 import { validateAssociationConnection } from "../../config/associationRules";
 import { cidrContains } from "../../config/cidrUtils";
+import { CANVAS_VERSION, migrateCanvas } from "../../config/canvasMigrations";
+import { LAYERS, LAYER_ORDER } from "../../config/canvasLayers";
+import { CanvasFilterContext } from "../../config/canvasFilterContext";
 
 import ReactFlow, {
   Background,
   Controls,
+  Panel,
   useNodesState,
   useEdgesState,
   useReactFlow,
@@ -56,6 +60,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
   const [editingEdge, setEditingEdge] = useState(null);   // existing edge being edited
   const [reviewOpen, setReviewOpen] = useState(false);
   const [pendingSGPrompt, setPendingSGPrompt] = useState(null); // nodes needing SG auto-create
+  const [canvasFilter, setCanvasFilter] = useState("all");
 
   // Undo / Redo history
   const [past,   setPast]   = useState([]);
@@ -211,13 +216,16 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
         );
         return;
       }
+      // Determine label based on relationship type
+      const assocLabel = sourceType === "SecretsManager" ? "credentials" : "assoc";
+
       // Valid association — create it directly, no modal needed
       setEdges((eds) => eds.concat({
         id: `e_assoc_${params.source}_${params.target}_${Date.now()}`,
         source: params.source,
         target: params.target,
         type: "association",
-        data: { label: "assoc" },
+        data: { label: assocLabel },
       }));
       return;
     }
@@ -564,7 +572,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
     event.dataTransfer.dropEffect = "move";
   };
 
-  const CANVAS_VERSION = "1.0";
+  // Versioning — see config/canvasMigrations.js for migration registry
 
   const onExport = () => {
     if (nodes.length === 0) {
@@ -649,13 +657,12 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
-        const state = JSON.parse(evt.target.result);
-        if (!state.nodes || !state.edges) throw new Error("Invalid file structure.");
+        const raw = JSON.parse(evt.target.result);
+        if (!raw.nodes || !raw.edges) throw new Error("Invalid file structure.");
 
-        // Version warning
-        if (state.version !== CANVAS_VERSION) {
-          showToast(`Warning: file version ${state.version} may not be fully compatible.`, true);
-        }
+        // Migrate to latest schema version
+        const { state, warnings: migrationWarnings } = migrateCanvas(raw);
+        migrationWarnings.forEach((w) => showToast(w, true));
 
         // Semantic validation
         const warnings = validateImport(state.nodes, state.edges);
@@ -989,28 +996,54 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
         </div>
       )}
 
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={handleNodesChange}
-        onEdgesChange={handleEdgesChange}
-        onConnect={onConnect}
-        onDrop={onDrop}
-        onDragOver={onDragOver}
-        onSelectionChange={handleSelectionChange}
-        onEdgeClick={onEdgeClick}
-        onNodeDoubleClick={onNodeDoubleClick}
-        onEdgeDoubleClick={onEdgeDoubleClick}
-        onNodeDragStart={onNodeDragStart}
-        onNodeDragStop={onNodeDragStop}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        deleteKeyCode={["Backspace", "Delete"]}
-        fitView
-      >
-        <Background />
-        <Controls />
-      </ReactFlow>
+      <CanvasFilterContext.Provider value={canvasFilter}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={handleNodesChange}
+          onEdgesChange={handleEdgesChange}
+          onConnect={onConnect}
+          onDrop={onDrop}
+          onDragOver={onDragOver}
+          onSelectionChange={handleSelectionChange}
+          onEdgeClick={onEdgeClick}
+          onNodeDoubleClick={onNodeDoubleClick}
+          onEdgeDoubleClick={onEdgeDoubleClick}
+          onNodeDragStart={onNodeDragStart}
+          onNodeDragStop={onNodeDragStop}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          deleteKeyCode={["Backspace", "Delete"]}
+          fitView
+        >
+          <Background />
+          <Controls />
+          <Panel position="top-center">
+            <div style={{
+              display: "flex", gap: 2, padding: 3,
+              background: "var(--bg-elevated)", border: "1px solid var(--border)",
+              borderRadius: 6, boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+            }}>
+              {LAYER_ORDER.map((key) => (
+                <button
+                  key={key}
+                  onClick={() => setCanvasFilter(key)}
+                  style={{
+                    fontFamily: "monospace", fontSize: 11, padding: "4px 10px",
+                    background: canvasFilter === key ? "var(--accent)" : "transparent",
+                    color: canvasFilter === key ? "#fff" : "var(--text-muted)",
+                    border: "none", borderRadius: 4, cursor: "pointer",
+                    fontWeight: canvasFilter === key ? 600 : 400,
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  {LAYERS[key].label}
+                </button>
+              ))}
+            </div>
+          </Panel>
+        </ReactFlow>
+      </CanvasFilterContext.Provider>
 
       {reviewOpen && (
         <ReviewPanel

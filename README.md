@@ -1,6 +1,6 @@
 # WIMCUI — Where Is My Cloud UI
 
-A browser-based infrastructure diagramming and validation tool for AWS. WIMCUI lets you visually design cloud architecture on a canvas, validate it against common infrastructure rules, and review it for Terraform readiness — without writing a single line of configuration upfront.
+A browser-based infrastructure diagramming, validation, and Terraform generation tool for AWS. WIMCUI lets you visually design cloud architecture on a canvas, validate it against common infrastructure rules, generate production-ready Terraform HCL, and validate the output — without writing a single line of configuration upfront.
 
 ---
 
@@ -14,14 +14,47 @@ The name is intentional. It answers the question architects ask when staring at 
 
 ## What It Can Do
 
-* Drag-and-drop placement of AWS resources: VPC, Subnet, EC2, RDS, Load Balancer, Internet Gateway, NAT Gateway, and Route Table
+### Canvas and Resources
+
+* Drag-and-drop placement of 22 AWS resource types:
+  * **Network**: VPC, Subnet, Internet Gateway, NAT Gateway, Route Table
+  * **Compute**: EC2, ECS, Lambda
+  * **Database**: RDS, DynamoDB, ElastiCache
+  * **Load Balancing**: Application/Network Load Balancer
+  * **Storage**: S3, ECR
+  * **Messaging**: SQS, SNS, EventBridge, Kinesis
+  * **Security**: SecretsManager
+  * **DNS**: Route53
 * Structural edges that model parent-child relationships (VPC contains Subnet, Subnet contains EC2)
 * Traffic edges that model ingress and egress rules between compute resources
 * Association edges that model Route Table to Subnet and Route Table to IGW/NAT Gateway relationships
 * Per-resource configuration via modal: CIDR validation, AZ selection, engine versions, instance types, LB listener/target group settings, and more
-* IAM Role system: define roles with colors and policies, assign them to EC2 instances, view assignments on the canvas via color stripes
+
+### IAM and Security
+
+* IAM Role system: define roles with colors and policies, assign them to EC2, ECS, and Lambda
+* Security Group system: define SGs with inbound/outbound rules, assign to SG-capable resources
+* Role and SG assignments visible on canvas via color indicators
+
+### Validation
+
 * Consequence engine: 20+ rules that flag availability, security, cost, and configuration issues in real time
-* HCL Readiness review: hard fail checks that block generation until the canvas is valid
+* HCL Readiness checks: hard fail validations that block generation until the canvas is valid
+* Per-resource-type checks for all 22 resource types
+
+### HCL Generation and Terraform Validation
+
+* Full Terraform HCL generation covering all 22 resource types, Security Groups, and IAM Roles
+* Safe reference resolution: broken references produce `# WARNING:` comments and collected warnings instead of `undefined` in output
+* Reverse name map: maps Terraform resource names back to canvas node IDs for error mapping
+* Dual-mode Terraform validation:
+  * **terraform binary available**: full provider-level validation (catches attribute errors, unknown arguments, type mismatches)
+  * **python-hcl2 fallback**: syntax-only validation when terraform is not available (catches malformed HCL)
+  * Auto-detection at startup with mode indicator in the UI
+* Copy to clipboard, download as `.tf`, and validate — all from the HCL Readiness tab
+
+### Canvas Management
+
 * Canvas export and import as JSON
 * Undo and redo with full state restoration including edges and IAM assignments
 * Dark and light theme
@@ -31,11 +64,11 @@ The name is intentional. It answers the question architects ask when staring at 
 
 ## What It Cannot Do (Yet)
 
-* Full Terraform HCL generation — the generator is not yet built. The tool validates readiness but does not output `.tf` files in this version.
-* Non-VPC resources — S3, SQS, SNS, Lambda, DynamoDB, and other regional/global services are not yet modeled.
-* Security Groups as first-class canvas nodes — SGs are derived at HCL generation time from traffic edge topology and are not directly editable on the canvas.
-* Multi-region canvases — one region per canvas.
-* Importing existing Terraform or CloudFormation into the canvas.
+* Multi-region canvases — one region per canvas
+* Importing existing Terraform or CloudFormation into the canvas
+* Additional resources: VPC Endpoints, CloudFront, WAF, ASG, ACM, Cognito, VPC Peering, EFS
+* Predefined architecture templates
+* Canvas JSON versioning for forward-compatible save/load
 
 ---
 
@@ -46,10 +79,14 @@ wimcui/
 ├── backend/
 │   ├── app/
 │   │   ├── api/
-│   │   │   └── graph_routes.py
+│   │   │   ├── graph_routes.py         # DAG generation endpoint
+│   │   │   └── hcl_routes.py           # HCL validation + mode endpoints
 │   │   ├── services/
-│   │   │   └── dag_builder.py
-│   │   └── main.py
+│   │   │   ├── dag_builder.py           # NetworkX DAG builder
+│   │   │   └── hcl_validator.py         # Dual-mode terraform/hcl2 validator
+│   │   ├── models/
+│   │   │   └── graph_models.py
+│   │   └── main.py                      # Flask app entry point
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
@@ -67,12 +104,16 @@ wimcui/
 │   │   │   │   └── EdgeConfigModal.jsx
 │   │   │   └── Sidebar/
 │   │   │       ├── ResourcePanel.jsx
-│   │   │       ├── ReviewPanel.jsx
+│   │   │       ├── ReviewPanel.jsx      # Consequence rules, HCL readiness, validation UI
 │   │   │       └── RoleManager.jsx
 │   │   ├── config/
-│   │   │   ├── resourceConfig.js
-│   │   │   ├── canvasContext.js
-│   │   │   ├── consequenceRules.js
+│   │   │   ├── resourceRegistry.js      # 22 resource type definitions
+│   │   │   ├── resourceConfig.js        # Per-type field definitions
+│   │   │   ├── hclGenerator.js          # Full HCL generator (all 22 types + SGs + IAM)
+│   │   │   ├── canvasContext.js          # buildContext() — derived state from canvas
+│   │   │   ├── consequenceRules.js      # Warning-level validation rules
+│   │   │   ├── trafficRules.js          # Traffic edge validation
+│   │   │   ├── associationRules.js      # Association edge rules
 │   │   │   ├── iamConfig.js
 │   │   │   ├── rolesContext.js
 │   │   │   ├── cidrUtils.js
@@ -82,7 +123,7 @@ wimcui/
 │   ├── index.html
 │   ├── package.json
 │   └── vite.config.js
-├── Dockerfile
+├── Dockerfile                           # Multi-stage: Node build + Python + Terraform
 ├── render.yaml
 └── README.md
 ```
@@ -94,7 +135,8 @@ wimcui/
 ### Prerequisites
 
 * Node.js 18 or later
-* Python 3.10 or later (backend is currently unused locally — see note below)
+* Python 3.10 or later
+* Terraform (optional — enables full provider-level validation locally)
 
 ### Frontend
 
@@ -104,13 +146,9 @@ npm install
 npm run dev
 ```
 
-The app runs at `http://localhost:5173`.
+The app runs at `http://localhost:5173`. The Vite dev server proxies `/api/*` and `/graph/*` to the backend on port 8000.
 
 ### Backend
-
-The Flask backend is not required for local development. All canvas logic, validation, and consequence rules run entirely in the browser. The backend exists for the HCL generation endpoint which is not yet implemented.
-
-If you want to run it anyway:
 
 ```bash
 cd backend
@@ -120,13 +158,42 @@ pip install -r requirements.txt
 python -m app.main
 ```
 
+The backend runs at `http://localhost:8000`.
+
+If terraform is installed, `POST /api/validate-hcl` runs full provider validation. Otherwise it falls back to python-hcl2 syntax checking. Check `GET /api/validation-mode` to see which engine is active.
+
+---
+
+## Deployment
+
+The project is configured for Render via `render.yaml` and a multi-stage Dockerfile.
+
+```bash
+# Build locally to test
+docker build -t wimcui .
+docker run -p 8000:8000 wimcui
+```
+
+The Dockerfile installs the Terraform binary. The AWS provider is downloaded on the first validation request (~30s). On resource-constrained plans where terraform times out, the backend automatically falls back to python-hcl2 syntax validation.
+
+---
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/health` | Health check |
+| GET | `/api/validation-mode` | Returns active validation engine (`terraform`, `hcl2`, or `none`) |
+| POST | `/api/validate-hcl` | Validates HCL — body: `{ hcl, reverse }` |
+| POST | `/graph/generate-tree` | Generates DAG from graph — body: `{ nodes, edges }` |
+
 ---
 
 ## Features
 
 ### Canvas
 
-Resources are placed by dragging from the sidebar. Structural edges are created automatically when a child resource (Subnet, EC2, RDS) selects a parent during configuration. Traffic and association edges are drawn manually by connecting node handles. Double-clicking any node or traffic edge opens its configuration modal.
+Resources are placed by dragging from the sidebar. Structural edges are created automatically when a child resource selects a parent during configuration. Traffic and association edges are drawn manually by connecting node handles. Double-clicking any node or traffic edge opens its configuration modal.
 
 ### Resource Configuration
 
@@ -134,15 +201,23 @@ Each resource type has its own set of validated fields. CIDR blocks are checked 
 
 ### IAM Roles
 
-Roles are defined in the Configure tab of the sidebar. Each role has a name, a color, and a set of AWS managed policies selected from a grouped catalog. Roles are assigned to EC2 instances either from the sidebar or from within the EC2 config modal. The assigned role appears as a color stripe on the left edge of the EC2 node on the canvas.
+Roles are defined in the Configure tab of the sidebar. Each role has a name, a color, and a set of AWS managed policies selected from a grouped catalog. Roles are assigned to EC2, ECS, and Lambda instances. The assigned role appears as a color stripe on the node on the canvas.
+
+### Security Groups
+
+Security Groups are defined in the Configure tab. Each SG has a name, color, and inbound/outbound rules (port, protocol, CIDR). SGs are assigned to SG-capable resources (EC2, ECS, Lambda, RDS, Load Balancer, ElastiCache). Traffic edges between resources auto-derive additional SG rules.
 
 ### Consequence Engine
 
-The Review Canvas panel runs all consequence rules against the current canvas state and groups results by severity: Availability, Security, Cost, and Configuration. Rules cover single points of failure, missing IGW routes, EC2 instances without IAM roles, redundant policies, NAT placement, RDS in public subnets, load balancer target count, and more.
+The Review Canvas panel runs all consequence rules against the current canvas state and groups results by severity: Availability, Security, Cost, and Configuration.
 
-### HCL Readiness
+### HCL Generation
 
-The HCL Readiness tab lists hard fail checks that must pass before Terraform generation is possible. These include missing required fields, invalid CIDR blocks, duplicate resource names, IAM role name format violations, and duplicate role names.
+The HCL Readiness tab validates readiness, generates Terraform HCL for all canvas resources, and provides copy/download/validate actions. The generator covers all 22 resource types plus Security Groups and IAM Roles with dependency-ordered output.
+
+### Terraform Validation
+
+Generated HCL can be validated against the Terraform AWS provider. The validation engine auto-detects: if the terraform binary is available, it runs full `terraform init + validate` with JSON diagnostics mapped back to canvas nodes. If terraform is unavailable, python-hcl2 provides syntax-only validation. The active engine is shown in the UI.
 
 ### Undo and Redo
 
@@ -150,4 +225,4 @@ All destructive and mutating actions are undoable: node deletion, edge deletion,
 
 ### Export and Import
 
-The canvas state — nodes, edges, region, and IAM roles — can be exported as a JSON file and reimported. Dangling role references in imported files are detected and cleared automatically.
+The canvas state — nodes, edges, region, IAM roles, and Security Groups — can be exported as a JSON file and reimported. Dangling role and SG references in imported files are detected and cleared automatically.

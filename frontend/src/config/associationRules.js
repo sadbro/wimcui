@@ -12,8 +12,9 @@
  */
 
 export const associationRules = {
-  RouteTable: { allowedTargets: ["Subnet", "IGW", "NATGateway"] },
-  Subnet:     { allowedTargets: ["RouteTable"] },
+  RouteTable:     { allowedTargets: ["Subnet", "IGW", "NATGateway"] },
+  Subnet:         { allowedTargets: ["RouteTable"] },
+  SecretsManager: { allowedTargets: ["RDS", "ECS", "Lambda", "EC2"] }, // credentials association
 };
 
 /**

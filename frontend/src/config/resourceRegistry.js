@@ -162,6 +162,42 @@ export const RESOURCE_REGISTRY = {
     sgCapable:   false,
     iamCapable:  false,
   },
+
+  // ─── Caching ────────────────────────────────────────────────────────────────
+  ElastiCache: {
+    label:       "ElastiCache",
+    color:       "#c7131f",
+    category:    "compute",
+    defaultSize: { width: 160, height: 60 },
+    sgCapable:   true,
+    iamCapable:  false,
+  },
+  // ─── Container Registry ────────────────────────────────────────────────────
+  ECR: {
+    label:       "ECR",
+    color:       "#d4380d",  // distinct from ECS (#eb2f96) and SNS (#eb2f96)
+    category:    "global",
+    defaultSize: { width: 160, height: 60 },
+    sgCapable:   false,
+    iamCapable:  false,
+  },
+  // ─── DNS & Streaming ────────────────────────────────────────────────────────
+  Route53: {
+    label:       "Route 53",
+    color:       "#8c4fff",
+    category:    "global",
+    defaultSize: { width: 160, height: 60 },
+    sgCapable:   false,
+    iamCapable:  false,
+  },
+  Kinesis: {
+    label:       "Kinesis",
+    color:       "#e535ab",
+    category:    "global",
+    defaultSize: { width: 160, height: 60 },
+    sgCapable:   false,
+    iamCapable:  false,
+  },
 };
 
 /** All registered resource type keys */

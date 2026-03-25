@@ -97,7 +97,7 @@ const OutpostsIcon           = _svc("AWSOutposts.svg");
 const LoadBalancerIcon       = _svc("ElasticLoadBalancing.svg");
 
 // ─── Containers ──────────────────────────────────────────────────────────────
-const ECRIcon                = _svc("AmazonECR.svg");
+const ECRIcon                = _svc("AmazonElasticContainerRegistry.svg");
 
 // ─── Storage ─────────────────────────────────────────────────────────────────
 const S3Icon                 = _svc("AmazonSimpleStorageService.svg");

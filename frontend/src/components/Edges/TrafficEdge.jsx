@@ -1,11 +1,13 @@
-import { BaseEdge, getBezierPath, EdgeLabelRenderer } from "reactflow";
+import { BaseEdge, getBezierPath, EdgeLabelRenderer, useNodes } from "reactflow";
+import { useCanvasFilter } from "../../config/canvasFilterContext";
+import { getEdgeOpacity } from "../../config/canvasLayers";
 
 const INGRESS_COLOR = "#52c41a"; // green
 const EGRESS_COLOR  = "#ff4d4f"; // red
 const EDGE_COLOR    = "#646cff"; // blue
 
 export default function TrafficEdge({
-  id, sourceX, sourceY, targetX, targetY,
+  id, source, target, sourceX, sourceY, targetX, targetY,
   sourcePosition, targetPosition,
   data, selected,
 }) {
@@ -41,6 +43,11 @@ export default function TrafficEdge({
 
   const strokeColor = selected ? "#4338ca" : EDGE_COLOR;
 
+  const filter = useCanvasFilter();
+  const allNodes = useNodes();
+  const nodeById = (nid) => allNodes.find((n) => n.id === nid);
+  const opacity = getEdgeOpacity({ source, target }, nodeById, filter);
+
   return (
     <>
       {/* SVG marker definitions */}
@@ -64,6 +71,8 @@ export default function TrafficEdge({
         style={{
           stroke: strokeColor,
           strokeWidth: selected ? 2.5 : 2,
+          opacity,
+          transition: "opacity 0.2s ease",
         }}
         markerEnd={finalMarkerEnd}
         markerStart={finalMarkerStart}
@@ -87,6 +96,8 @@ export default function TrafficEdge({
               display: "flex",
               alignItems: "center",
               gap: 4,
+              opacity,
+              transition: "opacity 0.2s ease",
             }}
             className="nodrag nopan"
           >

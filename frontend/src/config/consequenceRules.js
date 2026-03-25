@@ -220,17 +220,7 @@ export const consequenceRules = [
         })),
   },
 
-  {
-    id: "rds_no_multi_az",
-    category: "availability",
-    check: ({ rds }) =>
-      rds
-        .filter((db) => db.data?.config?.multi_az !== "true")
-        .map((db) => ({
-          node: db,
-          message: `${db.data.label} has Multi-AZ disabled — an AZ failure causes downtime until manual restore`,
-        })),
-  },
+
 
   {
     id: "single_nat",
@@ -465,7 +455,7 @@ export const consequenceRules = [
     category: "smell",
     check: ({ nodes, edges }) => {
       // These types are intentionally edgeless — accessed via IAM policies, not network edges
-      const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "SNS", "EventBridge", "SecretsManager", "Lambda"];
+      const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "SNS", "EventBridge", "SecretsManager", "ECR", "Route53"];
       return nodes
         .filter((n) => {
           if (EDGELESS_TYPES.includes(n.data?.resourceType)) return false;
@@ -1204,6 +1194,485 @@ export const consequenceRules = [
         const note = type === "HTTP" ? "~$1.00/million requests"
           : type === "REST" ? "~$3.50/million requests"
           : "~$1.00/million messages (WebSocket)";
+        return { node: n, message: `${n.data.label} — ${note}` };
+      });
+    },
+  },
+
+
+  // ─── Availability Zone Rules ─────────────────────────────────────────────
+
+  {
+    id: "nat_single_az",
+    category: "availability",
+    check: ({ nats, privateSubnets, nodeById }) => {
+      if (nats.length === 0) return []; // no NAT — other rules handle that
+      if (privateSubnets.length === 0) return [];
+
+      // Collect unique AZs across private subnets (only where AZ is known)
+      const privateAZs = new Set(
+        privateSubnets
+          .map((s) => s.data?.config?.availability_zone)
+          .filter(Boolean)
+      );
+
+      // If private subnets span more AZs than NAT Gateways, we have a gap
+      if (privateAZs.size > nats.length) {
+        const azList = [...privateAZs].join(", ");
+        return [{
+          node: nats[0], // attach warning to first NAT
+          message: `Only ${nats.length} NAT Gateway${nats.length > 1 ? "s" : ""} for private subnets spanning ${privateAZs.size} AZs (${azList}) — if the NAT's AZ fails, all private subnets lose internet access. Add one NAT Gateway per AZ.`,
+        }];
+      }
+      return [];
+    },
+  },
+
+  {
+    id: "alb_single_az",
+    category: "availability",
+    check: ({ lbs, nodeById }) => {
+      const results = [];
+      lbs.forEach((lb) => {
+        const subnetIds = lb.data?.config?.subnets || [];
+        if (subnetIds.length < 2) return; // already caught by alb_min_subnets
+
+        const azs = subnetIds
+          .map((id) => nodeById(id)?.data?.config?.availability_zone)
+          .filter(Boolean);
+
+        if (azs.length < 2) return; // not enough AZ data — skip
+
+        const uniqueAZs = new Set(azs);
+        if (uniqueAZs.size === 1) {
+          results.push({
+            node: lb,
+            message: `${lb.data.label} subnets are all in ${[...uniqueAZs][0]} — ALB requires subnets in at least 2 AZs for fault tolerance`,
+          });
+        }
+      });
+      return results;
+    },
+  },
+
+  {
+    id: "rds_no_multi_az",
+    category: "availability",
+    check: ({ rds }) =>
+      rds
+        .filter((n) => n.data?.config?.multi_az !== "true")
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has Multi-AZ disabled — no standby instance in a second AZ, risk of data loss and extended downtime on AZ failure`,
+          warn: true,
+        })),
+  },
+
+  {
+    id: "rds_min_subnets",
+    category: "smell",
+    check: ({ rds }) => {
+      return rds
+        .filter((n) => {
+          const subnets = n.data?.config?.subnets || [];
+          return subnets.length < 2;
+        })
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has fewer than 2 subnets — AWS requires a DB Subnet Group with subnets in at least 2 AZs`,
+        }));
+    },
+  },
+
+  {
+    id: "rds_subnet_single_az",
+    category: "availability",
+    check: ({ rds, nodeById }) => {
+      return rds
+        .filter((n) => {
+          const subnetIds = n.data?.config?.subnets || [];
+          if (subnetIds.length < 2) return false; // rds_min_subnets handles this
+          const azs = subnetIds
+            .map((id) => nodeById(id)?.data?.config?.availability_zone)
+            .filter(Boolean);
+          if (azs.length < 2) return false; // not enough AZ data
+          return new Set(azs).size === 1;
+        })
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} subnets are all in the same AZ — DB Subnet Group requires subnets in at least 2 different AZs`,
+        }));
+    },
+  },
+
+  {
+    id: "rds_no_encryption",
+    category: "security",
+    check: ({ rds }) =>
+      rds
+        .filter((n) => n.data?.config?.storage_encrypted !== "true")
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has storage encryption disabled — RDS encryption cannot be enabled after creation; rebuild the instance to fix this`,
+          warn: true,
+        })),
+  },
+
+  {
+    id: "rds_no_kms",
+    category: "security",
+    check: ({ rds }) =>
+      rds
+        .filter((n) => n.data?.config?.storage_encrypted === "true" && !n.data?.config?.kms_key_id?.trim())
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} uses default AWS-managed KMS key — use a customer-managed key for key rotation control and audit trail`,
+          warn: true,
+        })),
+  },
+
+  {
+    id: "ecs_single_az",
+    category: "availability",
+    check: ({ byResourceType, nodeById }) => {
+      const ecsList = byResourceType["ECS"] || [];
+      const results = [];
+      ecsList.forEach((n) => {
+        // Handle both subnetId (single) and subnets[] (future multi-select)
+        const subnetIds = n.data?.config?.subnets?.length
+          ? n.data.config.subnets
+          : n.data?.config?.subnetId
+          ? [n.data.config.subnetId]
+          : [];
+
+        if (subnetIds.length === 0) return;
+
+        const azs = subnetIds
+          .map((id) => nodeById(id)?.data?.config?.availability_zone)
+          .filter(Boolean);
+
+        if (azs.length === 0) return; // no AZ data — skip
+
+        const uniqueAZs = new Set(azs);
+        if (uniqueAZs.size === 1) {
+          results.push({
+            node: n,
+            message: `${n.data.label} is confined to a single AZ (${[...uniqueAZs][0]}) — all tasks run in one AZ. Add subnets across multiple AZs for fault tolerance.`,
+          });
+        }
+      });
+      return results;
+    },
+  },
+
+  {
+    id: "ec2_all_same_az",
+    category: "smell",
+    check: ({ ec2, nodeById }) => {
+      if (ec2.length < 2) return []; // single EC2 is fine
+
+      const azByNode = ec2.map((n) => ({
+        node: n,
+        az: nodeById(n.data?.config?.subnetId)?.data?.config?.availability_zone || null,
+      })).filter((e) => e.az !== null);
+
+      if (azByNode.length < 2) return []; // not enough AZ data
+
+      const uniqueAZs = new Set(azByNode.map((e) => e.az));
+      if (uniqueAZs.size === 1) {
+        return azByNode.map(({ node }) => ({
+          node,
+          message: `${node.data.label} is in ${[...uniqueAZs][0]} — all EC2 instances are in the same AZ. Distribute across AZs for fault tolerance.`,
+        }));
+      }
+      return [];
+    },
+  },
+
+
+  // ─── ElastiCache ─────────────────────────────────────────────────────────
+
+  {
+    id: "elasticache_no_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const clusters = byResourceType["ElastiCache"] || [];
+      return clusters
+        .filter((n) => !n.data?.config?.name?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} is missing a cluster name` }));
+    },
+  },
+
+  {
+    id: "elasticache_no_encryption",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const clusters = byResourceType["ElastiCache"] || [];
+      return clusters
+        .filter((n) => n.data?.config?.at_rest_encryption !== "true")
+        .map((n) => ({ node: n, message: `${n.data.label} has no encryption at rest — enable for production workloads` }));
+    },
+  },
+
+  {
+    id: "elasticache_no_tls",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const clusters = byResourceType["ElastiCache"] || [];
+      return clusters
+        .filter((n) => n.data?.config?.in_transit_encryption !== "true")
+        .map((n) => ({ node: n, message: `${n.data.label} has no in-transit encryption (TLS) — data between clients and cache is unencrypted` }));
+    },
+  },
+
+  {
+    id: "elasticache_no_multi_az",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const clusters = byResourceType["ElastiCache"] || [];
+      return clusters
+        .filter((n) => n.data?.config?.engine === "redis" && n.data?.config?.multi_az !== "true")
+        .map((n) => ({ node: n, message: `${n.data.label} is Redis without Multi-AZ — a single node has no automatic failover`, warn: true }));
+    },
+  },
+
+  {
+    id: "elasticache_no_auth",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const clusters = byResourceType["ElastiCache"] || [];
+      return clusters
+        .filter((n) =>
+          n.data?.config?.engine === "redis" &&
+          n.data?.config?.in_transit_encryption === "true" &&
+          !n.data?.config?.auth_token?.trim()
+        )
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has TLS enabled but no AUTH token — Redis is accessible to anyone who can reach the endpoint`,
+        }));
+    },
+  },
+
+  {
+    id: "elasticache_no_consumers",
+    category: "connectivity",
+    check: ({ byResourceType, trafficNeighbors }) => {
+      const clusters = byResourceType["ElastiCache"] || [];
+      return clusters
+        .filter((n) => !trafficNeighbors(n.id).some((nb) =>
+          ["EC2", "ECS", "Lambda"].includes(nb?.data?.resourceType)
+        ))
+        .map((n) => ({ node: n, message: `${n.data.label} has no consumers (EC2/ECS/Lambda) — cache is unreachable` }));
+    },
+  },
+
+  {
+    id: "elasticache_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const clusters = byResourceType["ElastiCache"] || [];
+      return clusters.map((n) => ({
+        node: n,
+        message: `${n.data.label} (${n.data.config?.node_type || "?"}) — billed per node-hour; Redis Multi-AZ doubles cost; data transfer within VPC is free`,
+      }));
+    },
+  },
+
+  // ─── ECR ─────────────────────────────────────────────────────────────────
+
+  {
+    id: "ecr_no_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const repos = byResourceType["ECR"] || [];
+      return repos
+        .filter((n) => !n.data?.config?.repository_name?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} is missing a repository name` }));
+    },
+  },
+
+  {
+    id: "ecr_mutable_tags",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const repos = byResourceType["ECR"] || [];
+      return repos
+        .filter((n) => n.data?.config?.image_tag_mutability !== "IMMUTABLE")
+        .map((n) => ({ node: n, message: `${n.data.label} uses mutable image tags — tags can be overwritten, breaking reproducible deployments`, warn: true }));
+    },
+  },
+
+  {
+    id: "ecr_no_scan",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const repos = byResourceType["ECR"] || [];
+      return repos
+        .filter((n) => n.data?.config?.scan_on_push !== "true")
+        .map((n) => ({ node: n, message: `${n.data.label} has no vulnerability scanning — enable scan_on_push to detect CVEs on every image push` }));
+    },
+  },
+
+  {
+    id: "ecr_no_lifecycle",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const repos = byResourceType["ECR"] || [];
+      return repos
+        .filter((n) => !n.data?.config?.lifecycle_policy || n.data?.config?.lifecycle_policy === "none")
+        .map((n) => ({ node: n, message: `${n.data.label} has no lifecycle policy — images accumulate indefinitely, storage costs grow unbounded` }));
+    },
+  },
+
+  {
+    id: "ecr_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const repos = byResourceType["ECR"] || [];
+      return repos.map((n) => ({
+        node: n,
+        message: `${n.data.label} — $0.10/GB/month storage; data transfer to ECS/Lambda in same region is free; cross-region pulls incur transfer costs`,
+      }));
+    },
+  },
+
+  // ─── Route53 ─────────────────────────────────────────────────────────────
+
+  {
+    id: "route53_no_zone",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const zones = byResourceType["Route53"] || [];
+      return zones
+        .filter((n) => !n.data?.config?.hosted_zone_name?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} is missing a hosted zone name` }));
+    },
+  },
+
+  {
+    id: "route53_no_target",
+    category: "connectivity",
+    check: ({ byResourceType, trafficNeighbors }) => {
+      const zones = byResourceType["Route53"] || [];
+      return zones
+        .filter((n) => trafficNeighbors(n.id).length === 0)
+        .map((n) => ({ node: n, message: `${n.data.label} has no routing target — connect to ALB, APIGateway, or EC2` }));
+    },
+  },
+
+  {
+    id: "route53_failover_no_health_check",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const zones = byResourceType["Route53"] || [];
+      return zones
+        .filter((n) =>
+          n.data?.config?.routing_policy === "failover" &&
+          n.data?.config?.health_check_enabled !== "true"
+        )
+        .map((n) => ({ node: n, message: `${n.data.label} uses failover routing but has no health check — failover will never trigger without health checks` }));
+    },
+  },
+
+  {
+    id: "route53_high_ttl",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const zones = byResourceType["Route53"] || [];
+      return zones
+        .filter((n) => {
+          const ttl = parseInt(n.data?.config?.ttl, 10);
+          return !isNaN(ttl) && ttl > 300;
+        })
+        .map((n) => ({ node: n, message: `${n.data.label} TTL is ${n.data.config.ttl}s — high TTL slows DNS failover; use ≤300s for production`, warn: true }));
+    },
+  },
+
+  {
+    id: "route53_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const zones = byResourceType["Route53"] || [];
+      return zones.map((n) => ({
+        node: n,
+        message: `${n.data.label} — $0.50/hosted zone/month; $0.40/million queries; health checks $0.50–$0.75/check/month`,
+      }));
+    },
+  },
+
+  // ─── Kinesis ─────────────────────────────────────────────────────────────
+
+  {
+    id: "kinesis_no_name",
+    category: "smell",
+    check: ({ byResourceType }) => {
+      const streams = byResourceType["Kinesis"] || [];
+      return streams
+        .filter((n) => !n.data?.config?.stream_name?.trim())
+        .map((n) => ({ node: n, message: `${n.data.label} is missing a stream name` }));
+    },
+  },
+
+  {
+    id: "kinesis_no_consumers",
+    category: "connectivity",
+    check: ({ byResourceType, trafficNeighbors }) => {
+      const streams = byResourceType["Kinesis"] || [];
+      return streams
+        .filter((n) => !trafficNeighbors(n.id).some((nb) =>
+          ["Lambda"].includes(nb?.data?.resourceType)
+        ))
+        .map((n) => ({ node: n, message: `${n.data.label} has no consumers (Lambda) — stream records will expire unprocessed` }));
+    },
+  },
+
+  {
+    id: "kinesis_no_producers",
+    category: "connectivity",
+    check: ({ byResourceType, trafficEdges, nodeById }) => {
+      const streams = byResourceType["Kinesis"] || [];
+      return streams
+        .filter((n) => !trafficEdges.some((e) => e.target === n.id))
+        .map((n) => ({ node: n, message: `${n.data.label} has no producers — no resource is writing to this stream` }));
+    },
+  },
+
+  {
+    id: "kinesis_no_encryption",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const streams = byResourceType["Kinesis"] || [];
+      return streams
+        .filter((n) => n.data?.config?.encryption !== "KMS")
+        .map((n) => ({ node: n, message: `${n.data.label} has no KMS encryption — stream data is stored unencrypted at rest`, warn: true }));
+    },
+  },
+
+  {
+    id: "kinesis_short_retention",
+    category: "availability",
+    check: ({ byResourceType }) => {
+      const streams = byResourceType["Kinesis"] || [];
+      return streams
+        .filter((n) => {
+          const h = parseInt(n.data?.config?.retention_hours, 10);
+          return !isNaN(h) && h <= 24;
+        })
+        .map((n) => ({ node: n, message: `${n.data.label} has 24-hour retention (minimum) — consumer outages longer than 24h will lose records`, warn: true }));
+    },
+  },
+
+  {
+    id: "kinesis_cost",
+    category: "cost",
+    check: ({ byResourceType }) => {
+      const streams = byResourceType["Kinesis"] || [];
+      return streams.map((n) => {
+        const mode = n.data?.config?.stream_mode || "PROVISIONED";
+        const note = mode === "ON_DEMAND"
+          ? "On-Demand: $0.08/million records + $0.04/GB; no shard management"
+          : `Provisioned: $0.015/shard-hour (${n.data?.config?.shard_count || "?"} shards); extended retention adds cost`;
         return { node: n, message: `${n.data.label} — ${note}` };
       });
     },

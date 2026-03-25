@@ -12,19 +12,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install Terraform
+# Install Terraform (provider downloads on first validate request)
 RUN apt-get update && apt-get install -y --no-install-recommends wget unzip \
     && wget -q https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip \
     && unzip terraform_1.5.7_linux_amd64.zip -d /usr/local/bin/ \
     && rm terraform_1.5.7_linux_amd64.zip \
     && apt-get purge -y wget unzip && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
-# Pre-warm Terraform AWS provider cache
 ENV TF_PLUGIN_CACHE_DIR=/app/.terraform_cache
-RUN mkdir -p $TF_PLUGIN_CACHE_DIR /tmp/tf_warmup \
-    && echo 'provider "aws" { region = "us-east-1" }' > /tmp/tf_warmup/main.tf \
-    && terraform -chdir=/tmp/tf_warmup init -backend=false \
-    && rm -rf /tmp/tf_warmup
+RUN mkdir -p $TF_PLUGIN_CACHE_DIR
 
 COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt gunicorn

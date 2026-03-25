@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { buildContext } from "../../config/canvasContext";
 import { consequenceRules, CATEGORY_LABELS } from "../../config/consequenceRules";
 import { generateHCL } from "../../config/hclGenerator";
@@ -903,8 +903,16 @@ function HclReadinessTab({ ctx, region }) {
   const [genWarnings, setGenWarnings] = useState([]);
   const [copied, setCopied] = useState(false);
   const [validating, setValidating] = useState(false);
-  const [validation, setValidation] = useState(null); // { valid, diagnostics }
+  const [validation, setValidation] = useState(null); // { valid, diagnostics, mode }
+  const [valMode, setValMode] = useState(null); // "terraform" | "hcl2" | "none" | null (loading)
   const codeRef = useRef(null);
+
+  useEffect(() => {
+    fetch("/api/validation-mode")
+      .then((r) => r.json())
+      .then((data) => setValMode(data.mode))
+      .catch(() => setValMode("none"));
+  }, []);
 
   const hasHardErrors = checks.some((c) => !c.ok && !c.warn);
 
@@ -934,7 +942,7 @@ function HclReadinessTab({ ctx, region }) {
         diagnostics: [{
           severity: "error",
           summary: "Backend unreachable",
-          detail: "Could not connect to the backend server. Is it running on port 5000?",
+          detail: "Could not connect to the backend server. Is it running on port 8000?",
           resource: null,
           nodeId: null,
         }],
@@ -1036,22 +1044,37 @@ function HclReadinessTab({ ctx, region }) {
             </button>
             <button
               onClick={handleValidate}
-              disabled={validating}
+              disabled={validating || valMode === "none"}
               style={{
                 ...MONO, fontSize: 12, padding: "8px 12px",
                 background: validating ? "var(--bg-elevated)" : "#1a1a2e",
                 color: validating ? "var(--text-muted)" : "#a78bfa",
                 border: "1px solid #a78bfa44",
                 borderRadius: 4,
-                cursor: validating ? "wait" : "pointer",
-                opacity: validating ? 0.6 : 1,
+                cursor: validating || valMode === "none" ? "not-allowed" : "pointer",
+                opacity: validating || valMode === "none" ? 0.6 : 1,
               }}
             >
-              {validating ? "Validating..." : "Terraform Validate"}
+              {validating ? "Validating..." : "Validate"}
             </button>
           </>
         )}
       </div>
+
+      {/* Validation mode indicator */}
+      {hcl && valMode && (
+        <div style={{
+          ...MONO, fontSize: 10, marginTop: 8, padding: "4px 8px",
+          background: valMode === "terraform" ? "#0a2e1a" : valMode === "hcl2" ? "#2e2a0a" : "#2e0a0a",
+          border: `1px solid ${valMode === "terraform" ? "#2d6a4f" : valMode === "hcl2" ? "#6a5f2d" : "#6a2d2d"}`,
+          borderRadius: 3, display: "inline-block",
+          color: valMode === "terraform" ? "#52c41a" : valMode === "hcl2" ? "#faad14" : "#ff4d4f",
+        }}>
+          {valMode === "terraform" && "engine: terraform — full provider validation"}
+          {valMode === "hcl2" && "engine: python-hcl2 — syntax only (terraform not available on server)"}
+          {valMode === "none" && "no validation engine available"}
+        </div>
+      )}
 
       {/* Reference warnings */}
       {genWarnings.length > 0 && (
@@ -1080,7 +1103,10 @@ function HclReadinessTab({ ctx, region }) {
             color: validation.valid ? "#52c41a" : "#ff4d4f",
             marginBottom: validation.diagnostics?.length ? 8 : 0,
           }}>
-            {validation.valid ? "terraform validate: PASSED" : "terraform validate: FAILED"}
+            {validation.valid
+              ? `${validation.mode === "hcl2" ? "hcl2 syntax check" : "terraform validate"}: PASSED`
+              : `${validation.mode === "hcl2" ? "hcl2 syntax check" : "terraform validate"}: FAILED`
+            }
           </div>
           {(validation.diagnostics || []).map((d, i) => (
             <div key={i} style={{

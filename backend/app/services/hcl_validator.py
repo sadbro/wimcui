@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import re
@@ -12,10 +13,29 @@ os.makedirs(PLUGIN_CACHE, exist_ok=True)
 TIMEOUT_INIT = 120   # seconds — first init downloads ~400MB provider
 TIMEOUT_VALIDATE = 30
 
+# Auto-detect terraform availability at import time
+TF_AVAILABLE = shutil.which("terraform") is not None
+
+# Try importing python-hcl2 as fallback
+try:
+    import hcl2 as _hcl2
+    import io as _io
+    HCL2_AVAILABLE = True
+except ImportError:
+    HCL2_AVAILABLE = False
+
+
+def get_validation_mode():
+    """Return which validation engine is available."""
+    if TF_AVAILABLE:
+        return "terraform"
+    if HCL2_AVAILABLE:
+        return "hcl2"
+    return "none"
+
 
 def _extract_resource_name(detail):
     """Try to pull a terraform resource name from a diagnostic message."""
-    # Matches patterns like: aws_instance.web_server, aws_vpc.my_vpc
     match = re.search(r'(\w+\.\w+)', detail or "")
     return match.group(1) if match else None
 
@@ -28,7 +48,7 @@ def _map_to_node_id(resource_addr, reverse):
     # Handle snippet context format: 'resource "aws_instance" "web_server"'
     quoted = re.findall(r'"([^"]+)"', resource_addr)
     if len(quoted) >= 2:
-        tf_name = quoted[1]  # second quoted string is the resource name
+        tf_name = quoted[1]
         return reverse.get(tf_name)
 
     # Handle dotted format: "aws_instance.web_server"
@@ -40,29 +60,9 @@ def _map_to_node_id(resource_addr, reverse):
     return None
 
 
-def validate_hcl(hcl, reverse=None):
-    """
-    Write HCL to a temp dir, run terraform init + validate, return structured result.
-
-    Returns:
-        {
-            "valid": bool,
-            "diagnostics": [
-                {
-                    "severity": "error" | "warning",
-                    "summary": str,
-                    "detail": str,
-                    "resource": str | None,     # e.g. "aws_instance.web_server"
-                    "nodeId": str | None,        # canvas node ID from reverse map
-                }
-            ],
-            "raw_stdout": str,   # raw terraform validate output for debugging
-        }
-    """
-    reverse = reverse or {}
-
+def _validate_with_terraform(hcl, reverse):
+    """Full terraform init + validate."""
     with tempfile.TemporaryDirectory(prefix="wimcui_tf_") as tmpdir:
-        # Write the HCL file
         tf_path = os.path.join(tmpdir, "main.tf")
         with open(tf_path, "w") as f:
             f.write(hcl)
@@ -83,6 +83,7 @@ def validate_hcl(hcl, reverse=None):
         except subprocess.TimeoutExpired:
             return {
                 "valid": False,
+                "mode": "terraform",
                 "diagnostics": [{
                     "severity": "error",
                     "summary": "Terraform init timed out",
@@ -92,22 +93,11 @@ def validate_hcl(hcl, reverse=None):
                 }],
                 "raw_stdout": "",
             }
-        except FileNotFoundError:
-            return {
-                "valid": False,
-                "diagnostics": [{
-                    "severity": "error",
-                    "summary": "Terraform not found",
-                    "detail": "terraform binary is not installed or not on PATH.",
-                    "resource": None,
-                    "nodeId": None,
-                }],
-                "raw_stdout": "",
-            }
 
         if init_result.returncode != 0:
             return {
                 "valid": False,
+                "mode": "terraform",
                 "diagnostics": [{
                     "severity": "error",
                     "summary": "Terraform init failed",
@@ -131,6 +121,7 @@ def validate_hcl(hcl, reverse=None):
         except subprocess.TimeoutExpired:
             return {
                 "valid": False,
+                "mode": "terraform",
                 "diagnostics": [{
                     "severity": "error",
                     "summary": "Terraform validate timed out",
@@ -141,12 +132,13 @@ def validate_hcl(hcl, reverse=None):
                 "raw_stdout": "",
             }
 
-        # Parse the JSON output
+        # Parse JSON output
         try:
             tf_output = json.loads(val_result.stdout)
         except json.JSONDecodeError:
             return {
                 "valid": False,
+                "mode": "terraform",
                 "diagnostics": [{
                     "severity": "error",
                     "summary": "Failed to parse terraform output",
@@ -157,23 +149,18 @@ def validate_hcl(hcl, reverse=None):
                 "raw_stdout": val_result.stdout,
             }
 
-        # Map terraform diagnostics to our format
         diagnostics = []
         for diag in tf_output.get("diagnostics", []):
             summary = diag.get("summary", "")
             detail = diag.get("detail", "")
             severity = diag.get("severity", "error")
 
-            # Try to extract resource address from the diagnostic's snippet
             resource_addr = None
             snippet = diag.get("snippet", {})
             if snippet:
-                # snippet.context often has the resource address
                 resource_addr = snippet.get("context")
 
-            # Fallback: try to extract from subject or detail text
             if not resource_addr:
-                subject = diag.get("range", {})
                 resource_addr = _extract_resource_name(detail) or _extract_resource_name(summary)
 
             node_id = _map_to_node_id(resource_addr, reverse)
@@ -188,6 +175,75 @@ def validate_hcl(hcl, reverse=None):
 
         return {
             "valid": tf_output.get("valid", False),
+            "mode": "terraform",
             "diagnostics": diagnostics,
             "raw_stdout": val_result.stdout,
         }
+
+
+def _validate_with_hcl2(hcl, reverse):
+    """Fallback: python-hcl2 syntax-only validation."""
+    try:
+        _hcl2.load(_io.StringIO(hcl))
+        return {
+            "valid": True,
+            "mode": "hcl2",
+            "diagnostics": [],
+            "raw_stdout": "",
+        }
+    except Exception as e:
+        detail = str(e)
+
+        # Try to extract resource context from the error
+        resource_addr = _extract_resource_name(detail)
+        node_id = _map_to_node_id(resource_addr, reverse) if resource_addr else None
+
+        return {
+            "valid": False,
+            "mode": "hcl2",
+            "diagnostics": [{
+                "severity": "error",
+                "summary": "HCL syntax error",
+                "detail": detail,
+                "resource": resource_addr,
+                "nodeId": node_id,
+            }],
+            "raw_stdout": "",
+        }
+
+
+def validate_hcl(hcl, reverse=None):
+    """
+    Validate HCL using the best available engine.
+    - terraform binary available → full provider-level validation
+    - python-hcl2 available → syntax-only validation
+    - neither → error
+
+    Returns:
+        {
+            "valid": bool,
+            "mode": "terraform" | "hcl2" | "none",
+            "diagnostics": [...],
+            "raw_stdout": str,
+        }
+    """
+    reverse = reverse or {}
+
+    if TF_AVAILABLE:
+        return _validate_with_terraform(hcl, reverse)
+
+    if HCL2_AVAILABLE:
+        return _validate_with_hcl2(hcl, reverse)
+
+    return {
+        "valid": False,
+        "mode": "none",
+        "diagnostics": [{
+            "severity": "error",
+            "summary": "No validation engine available",
+            "detail": "Neither terraform binary nor python-hcl2 package is installed.",
+            "resource": None,
+            "nodeId": None,
+        }],
+        "raw_stdout": "",
+    }

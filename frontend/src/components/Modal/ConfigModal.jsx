@@ -72,6 +72,7 @@ const routeInputStyle = {
 export default function ConfigModal({
   resourceType,
   existingConfig = {},
+  nodeLabel = "",
   canvasNodes = [],
   editingNodeId = null,
   region = "us-east-1",
@@ -87,7 +88,10 @@ export default function ConfigModal({
 
   // Migration: ECS and RDS moved from subnetId (single) to subnets[] (multi-select)
   // Seed subnets from legacy subnetId so old canvases open correctly
-  const migratedConfig = { ...existingConfig };
+  const migratedConfig = {
+    display_name: existingConfig.display_name ?? nodeLabel,
+    ...existingConfig,
+  };
   if ((resourceType === "ECS" || resourceType === "RDS") && !migratedConfig.subnets && migratedConfig.subnetId) {
     migratedConfig.subnets = [migratedConfig.subnetId];
   }
@@ -106,8 +110,12 @@ export default function ConfigModal({
         const opts = f.getOptions ? f.getOptions(canvasNodes, {}, region) : (f.options || []);
         acc[f.key] = migratedConfig[f.key] !== undefined ? migratedConfig[f.key] : (opts[0] || "");
       } else if (f.type === "dependent-select") {
-        const firstKey = Object.keys(f.optionsMap)[0];
-        acc[f.key] = migratedConfig[f.key] !== undefined ? migratedConfig[f.key] : (f.optionsMap[firstKey]?.[0] || "");
+        if (f.optionsMap) {
+          const firstKey = Object.keys(f.optionsMap)[0];
+          acc[f.key] = migratedConfig[f.key] !== undefined ? migratedConfig[f.key] : (f.optionsMap[firstKey]?.[0] || "");
+        } else {
+          acc[f.key] = migratedConfig[f.key] !== undefined ? migratedConfig[f.key] : "";
+        }
       } else if (f.type === "parent-select") {
         const parents = getParentOptions(f.parentType);
         acc[f.key] = migratedConfig[f.key] !== undefined ? migratedConfig[f.key] : (parents.length > 0 ? parents[0].id : "");
@@ -127,6 +135,7 @@ export default function ConfigModal({
     setForm((prev) => {
       const updated = { ...prev };
       dependentFields.forEach((f) => {
+        if (!f.optionsMap) return;
         const depValue = prev[f.dependsOn];
         const validOptions = f.optionsMap[depValue] || [];
         if (!validOptions.includes(prev[f.key])) {
@@ -135,7 +144,7 @@ export default function ConfigModal({
       });
       return updated;
     });
-  }, [fields.map((f) => f.type === "dependent-select" ? form[f.dependsOn] : null).join(",")]);
+  }, [fields.map((f) => f.type === "dependent-select" && f.dependsOn ? form[f.dependsOn] : null).join(",")]);
 
   useEffect(() => {
     setForm(buildInitial());
@@ -249,7 +258,7 @@ export default function ConfigModal({
                     </option>
                   ))}
                 </select>
-              ) : f.type === "dependent-select" ? (
+              ) : f.type === "dependent-select" && f.optionsMap ? (
                 <select
                   value={form[f.key]}
                   onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
@@ -258,6 +267,32 @@ export default function ConfigModal({
                   {(f.optionsMap[form[f.dependsOn]] || []).map((opt) => (
                     <option key={opt} value={opt}>{opt}</option>
                   ))}
+                </select>
+              ) : f.type === "dependent-select" && f.parentTypeMap ? (
+                <select
+                  value={form[f.key]}
+                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  style={inputStyle}
+                >
+                  <option value="">— none —</option>
+                  {(canvasNodes || [])
+                    .filter((n) => n.data?.resourceType === f.parentTypeMap[form[f.dependsOn]])
+                    .map((n) => (
+                      <option key={n.id} value={n.id}>{n.data?.label || n.id}</option>
+                    ))}
+                </select>
+              ) : f.type === "dependent-select" && f.parentType ? (
+                <select
+                  value={form[f.key]}
+                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  style={inputStyle}
+                >
+                  <option value="">— none —</option>
+                  {(canvasNodes || [])
+                    .filter((n) => n.data?.resourceType === f.parentType)
+                    .map((n) => (
+                      <option key={n.id} value={n.id}>{n.data?.label || n.id}</option>
+                    ))}
                 </select>
               ) : f.type === "password" ? (
                 <input

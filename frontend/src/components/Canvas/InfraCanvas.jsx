@@ -521,7 +521,8 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
       }
     }
 
-    const displayLabel = config.name ? `${type}.${config.name}` : type;
+    const displayLabel = config.display_name?.trim()
+      || (config.name ? `${type}.${config.name}` : type);
 
     const updatedNode = {
       ...editingNode,
@@ -914,6 +915,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
         <ConfigModal
           resourceType={editingNode.data.resourceType}
           existingConfig={editingNode.data.config || {}}
+          nodeLabel={editingNode.data.label}
           canvasNodes={nodes}
           editingNodeId={editingNode.id}
           region={region}

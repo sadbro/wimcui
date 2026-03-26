@@ -1,0 +1,34 @@
+{
+  "resources": [
+    { "key": "VPC", "title": "VPC", "summary": "Isolated virtual network" },
+    { "key": "Subnet", "title": "Subnet", "summary": "Network segment within a VPC" },
+    { "key": "EC2", "title": "EC2 Instance", "summary": "Virtual server" },
+    { "key": "ECS", "title": "ECS Service", "summary": "Managed containers (Fargate)" },
+    { "key": "RDS", "title": "RDS Database", "summary": "Managed relational database" },
+    { "key": "LoadBalancer", "title": "Load Balancer", "summary": "Traffic distribution (ALB/NLB)" },
+    { "key": "Lambda", "title": "Lambda", "summary": "Serverless functions" },
+    { "key": "ElastiCache", "title": "ElastiCache", "summary": "In-memory caching (Redis/Memcached)" },
+    { "key": "ASG", "title": "Auto Scaling Group", "summary": "Auto-scaling EC2 fleet" },
+    { "key": "IGW", "title": "Internet Gateway", "summary": "VPC internet access" },
+    { "key": "NATGateway", "title": "NAT Gateway", "summary": "Private subnet outbound access" },
+    { "key": "RouteTable", "title": "Route Table", "summary": "Network routing rules" },
+    { "key": "S3", "title": "S3 Bucket", "summary": "Object storage" },
+    { "key": "DynamoDB", "title": "DynamoDB", "summary": "NoSQL database" },
+    { "key": "SQS", "title": "SQS Queue", "summary": "Message queuing" },
+    { "key": "SNS", "title": "SNS Topic", "summary": "Pub/sub messaging" },
+    { "key": "EventBridge", "title": "EventBridge", "summary": "Event routing bus" },
+    { "key": "SecretsManager", "title": "Secrets Manager", "summary": "Secure credential storage" },
+    { "key": "ECR", "title": "ECR", "summary": "Container image registry" },
+    { "key": "APIGateway", "title": "API Gateway", "summary": "Managed API front door" },
+    { "key": "Route53", "title": "Route 53", "summary": "DNS management" },
+    { "key": "Kinesis", "title": "Kinesis", "summary": "Real-time data streaming" },
+    { "key": "ACM", "title": "ACM Certificate", "summary": "SSL/TLS certificates" },
+    { "key": "CloudFront", "title": "CloudFront", "summary": "Global CDN" },
+    { "key": "WAF", "title": "WAF", "summary": "Web application firewall" }
+  ],
+  "groups": [
+    { "key": "public-web-server", "title": "Public Web Server", "summary": "Internet-facing EC2 with VPC, subnet, IGW, and security group", "group": true },
+    { "key": "three-tier-app", "title": "Classic 3-Tier App", "summary": "ALB → compute → RDS with public and private subnets", "group": true },
+    { "key": "serverless-api", "title": "Serverless API", "summary": "API Gateway → Lambda → DynamoDB with no VPC needed", "group": true }
+  ]
+}

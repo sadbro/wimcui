@@ -1,0 +1,98 @@
+{
+  "type": "ACM",
+  "title": "ACM Certificate",
+  "description": "Managed SSL/TLS certificates for HTTPS. Handles provisioning, renewal, and deployment to ALBs and CloudFront. Free for public certificates — no reason not to use HTTPS.",
+  "connections": {
+    "parents": [],
+    "trafficSources": [],
+    "trafficTargets": [],
+    "associations": [
+      "LoadBalancer",
+      "CloudFront"
+    ]
+  },
+  "practices": [
+    "Use DNS validation over email — it's automated and renews without manual intervention.",
+    "For CloudFront, the ACM certificate MUST be in us-east-1 regardless of your application's region.",
+    "Request certificates with SANs (Subject Alternative Names) for multiple domains on one cert.",
+    "ACM certificates are free for public domains. There's no cost reason to avoid HTTPS."
+  ],
+  "configNotes": [
+    "Domain name is required (e.g., example.com or *.example.com for wildcard).",
+    "Validation method: DNS (recommended, automated) or Email.",
+    "Subject Alternative Names for additional domains on the same certificate."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 250,
+          "y": 50
+        },
+        "data": {
+          "resourceType": "ACM",
+          "label": "*.example.com",
+          "config": {
+            "domain_name": "*.example.com",
+            "validation_method": "DNS",
+            "name": "wildcard-cert"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 100,
+          "y": 220
+        },
+        "data": {
+          "resourceType": "LoadBalancer",
+          "label": "Web ALB",
+          "config": {
+            "lb_type": "alb",
+            "name": "web-alb",
+            "load_balancer_type": "application",
+            "internal": "false",
+            "tg_port": "80",
+            "tg_protocol": "HTTP",
+            "listener_port": "443",
+            "listener_protocol": "HTTPS"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 400,
+          "y": 220
+        },
+        "data": {
+          "resourceType": "CloudFront",
+          "label": "CDN",
+          "config": {
+            "name": "cdn",
+            "origin_type": "S3"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "association"
+      },
+      {
+        "id": "e2",
+        "source": "n1",
+        "target": "n3",
+        "type": "association"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [],
+    "roles": []
+  }
+}

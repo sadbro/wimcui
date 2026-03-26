@@ -1,0 +1,230 @@
+{
+  "type": "EC2",
+  "title": "EC2 Instance",
+  "description": "An EC2 instance is a virtual server in AWS. It runs your application code and can be placed in a subnet to control network access and availability zone placement.",
+  "connections": {
+    "parents": [
+      "Subnet"
+    ],
+    "trafficSources": [
+      "EC2",
+      "RDS",
+      "LoadBalancer",
+      "Public",
+      "ECS",
+      "Lambda",
+      "APIGateway",
+      "Route53"
+    ],
+    "trafficTargets": [
+      "EC2",
+      "RDS",
+      "LoadBalancer",
+      "ECS",
+      "ElastiCache",
+      "Kinesis"
+    ],
+    "associations": []
+  },
+  "practices": [
+    "Always attach a Security Group — EC2 instances without SGs have no inbound access, but explicit SGs make intent clear.",
+    "Use IAM instance profiles instead of hardcoded credentials; never put AWS keys on an instance.",
+    "Right-size the instance type — start small and scale up based on actual utilization metrics.",
+    "Place production instances in a private subnet behind a Load Balancer; only bastion hosts belong in public subnets."
+  ],
+  "configNotes": [
+    "AMI ID is required and determines the OS and pre-installed software.",
+    "Instance type is required and determines CPU, memory, and network performance.",
+    "Subnet placement determines the Availability Zone — you cannot move an instance to another AZ after launch."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 300,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "VPC",
+          "label": "Production VPC",
+          "config": {
+            "cidr": "10.0.0.0/16",
+            "name": "prod-vpc"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 100,
+          "y": 350
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public Subnet",
+          "config": {
+            "cidr": "10.0.1.0/24",
+            "az": "us-east-1a",
+            "name": "prod-public-subnet",
+            "visibility": "Public",
+            "availability_zone": "us-east-1a"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 500,
+          "y": 350
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Private Subnet",
+          "config": {
+            "cidr": "10.0.2.0/24",
+            "az": "us-east-1b",
+            "name": "prod-private-subnet",
+            "visibility": "Private",
+            "availability_zone": "us-east-1b"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": {
+          "x": 100,
+          "y": 600
+        },
+        "data": {
+          "resourceType": "LoadBalancer",
+          "label": "App ALB",
+          "config": {
+            "type": "ALB",
+            "listenerPort": 443,
+            "listenerProtocol": "HTTPS",
+            "name": "prod-app-alb",
+            "load_balancer_type": "application",
+            "internal": "false",
+            "tg_port": "80",
+            "tg_protocol": "HTTP",
+            "listener_port": "443",
+            "listener_protocol": "HTTPS",
+            "sg_ids": [
+              "sg-n4"
+            ]
+          }
+        }
+      },
+      {
+        "id": "n5",
+        "position": {
+          "x": 500,
+          "y": 600
+        },
+        "data": {
+          "resourceType": "EC2",
+          "label": "Web Server",
+          "config": {
+            "ami": "ami-0c02fb55956c7d316",
+            "instanceType": "t3.medium",
+            "name": "prod-web-server",
+            "sgCapable": true,
+            "iamCapable": true,
+            "instance_type": "t3.small",
+            "sg_ids": [
+              "sg-n5"
+            ],
+            "iam_role_id": "role-ec2-n5"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "structural"
+      },
+      {
+        "id": "e2",
+        "source": "n1",
+        "target": "n3",
+        "type": "structural"
+      },
+      {
+        "id": "e3",
+        "source": "n2",
+        "target": "n4",
+        "type": "structural"
+      },
+      {
+        "id": "e4",
+        "source": "n3",
+        "target": "n5",
+        "type": "structural"
+      },
+      {
+        "id": "e5",
+        "source": "n4",
+        "target": "n5",
+        "type": "traffic"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [
+      {
+        "id": "sg-n4",
+        "name": "prod-app-alb-sg",
+        "description": "Security group for App ALB",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "443",
+            "cidr": "0.0.0.0/0",
+            "description": "HTTPS from internet"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "tcp",
+            "port": "80",
+            "cidr": "sg-n5",
+            "description": "To Web Server"
+          }
+        ]
+      },
+      {
+        "id": "sg-n5",
+        "name": "prod-web-server-sg",
+        "description": "Security group for Web Server",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "80",
+            "cidr": "sg-n4",
+            "description": "From App ALB"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "-1",
+            "port": "0",
+            "cidr": "0.0.0.0/0",
+            "description": "All outbound"
+          }
+        ]
+      }
+    ],
+    "roles": [
+      {
+        "id": "role-ec2-n5",
+        "name": "prod-web-server-role",
+        "policies": [
+          "AmazonSSMManagedInstanceCore"
+        ]
+      }
+    ]
+  }
+}

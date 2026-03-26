@@ -1,0 +1,166 @@
+{
+  "type": "Kinesis",
+  "title": "Kinesis",
+  "description": "Real-time data streaming service. Ingests and processes high-throughput data streams — clickstreams, logs, IoT telemetry, financial transactions. Ordered within each shard.",
+  "connections": {
+    "parents": [],
+    "trafficSources": [
+      "EC2",
+      "ECS",
+      "Lambda"
+    ],
+    "trafficTargets": [
+      "Lambda"
+    ],
+    "associations": []
+  },
+  "practices": [
+    "Start with on-demand capacity mode unless you know your exact throughput — it auto-scales shards.",
+    "Use enhanced fan-out for multiple consumers that each need the full stream throughput.",
+    "Set retention period based on your recovery needs: 24h default, up to 365 days for compliance.",
+    "Use Kinesis over SQS when you need ordered processing, multiple consumers, or replay capability."
+  ],
+  "configNotes": [
+    "Stream name is required.",
+    "Shard count determines throughput: each shard handles 1MB/s in, 2MB/s out.",
+    "Retention period: 24 hours (default) to 365 days.",
+    "Consumer type: shared (default) or enhanced fan-out (dedicated throughput per consumer)."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 100,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "EC2",
+          "label": "Event Producer",
+          "config": {
+            "name": "producer",
+            "instance_type": "t3.small",
+            "ami": "ami-0abcdef1234567890",
+            "sg_ids": [
+              "sg-n1"
+            ],
+            "iam_role_id": "role-ec2-n1"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 350,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "Kinesis",
+          "label": "Event Stream",
+          "config": {
+            "name": "event-stream",
+            "stream_name": "events",
+            "stream_mode": "ON_DEMAND"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 600,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "Stream Processor",
+          "config": {
+            "runtime": "python3.12",
+            "name": "processor",
+            "handler": "index.handler",
+            "memory_size": "256",
+            "timeout": "30",
+            "sg_ids": [
+              "sg-n3"
+            ],
+            "iam_role_id": "role-lambda-n3"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "traffic"
+      },
+      {
+        "id": "e2",
+        "source": "n2",
+        "target": "n3",
+        "type": "traffic"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [
+      {
+        "id": "sg-n1",
+        "name": "producer-sg",
+        "description": "Security group for Event Producer",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "443",
+            "cidr": "0.0.0.0/0",
+            "description": "HTTPS"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "tcp",
+            "port": "443",
+            "cidr": "0.0.0.0/0",
+            "description": "HTTPS to AWS API"
+          }
+        ]
+      },
+      {
+        "id": "sg-n3",
+        "name": "processor-sg",
+        "description": "Security group for Stream Processor",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "443",
+            "cidr": "0.0.0.0/0",
+            "description": "HTTPS"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "-1",
+            "port": "0",
+            "cidr": "0.0.0.0/0",
+            "description": "All outbound"
+          }
+        ]
+      }
+    ],
+    "roles": [
+      {
+        "id": "role-ec2-n1",
+        "name": "producer-role",
+        "policies": [
+          "AmazonSSMManagedInstanceCore"
+        ]
+      },
+      {
+        "id": "role-lambda-n3",
+        "name": "processor-exec-role",
+        "policies": [
+          "AWSLambdaBasicExecutionRole"
+        ]
+      }
+    ]
+  }
+}

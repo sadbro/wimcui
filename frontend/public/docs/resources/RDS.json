@@ -1,0 +1,216 @@
+{
+  "type": "RDS",
+  "title": "RDS Database",
+  "description": "Managed relational database service. Supports MySQL, PostgreSQL, MariaDB, Oracle, and SQL Server. Handles backups, patching, and failover automatically.",
+  "connections": {
+    "parents": [
+      "Subnet"
+    ],
+    "trafficSources": [
+      "EC2",
+      "ECS",
+      "Lambda"
+    ],
+    "trafficTargets": [
+      "EC2"
+    ],
+    "associations": []
+  },
+  "practices": [
+    "Always place RDS in a private subnet — never expose a database directly to the internet.",
+    "Enable Multi-AZ for production workloads. Single-AZ means your DB goes down during maintenance windows.",
+    "Use SecretsManager for credentials instead of hardcoding passwords in application config.",
+    "Enable encryption at rest and enforce SSL connections for data in transit."
+  ],
+  "configNotes": [
+    "Engine and version are required (e.g., postgres 15.4).",
+    "Instance class determines compute power (e.g., db.t3.micro for dev, db.r6g.large for prod).",
+    "Allocated storage in GB — enable autoscaling for production.",
+    "Master username and password are required for initial setup."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 250,
+          "y": 0
+        },
+        "data": {
+          "resourceType": "VPC",
+          "label": "App VPC",
+          "config": {
+            "cidr": "10.0.0.0/16",
+            "name": "app-vpc"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 100,
+          "y": 120
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "App Subnet",
+          "config": {
+            "cidr": "10.0.1.0/24",
+            "az": "us-east-1a",
+            "name": "app-subnet",
+            "visibility": "Private",
+            "availability_zone": "us-east-1a"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 400,
+          "y": 120
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "DB Subnet",
+          "config": {
+            "cidr": "10.0.2.0/24",
+            "az": "us-east-1b",
+            "name": "db-subnet",
+            "visibility": "Private",
+            "availability_zone": "us-east-1b"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": {
+          "x": 100,
+          "y": 280
+        },
+        "data": {
+          "resourceType": "EC2",
+          "label": "App Server",
+          "config": {
+            "ami": "ami-0abcdef1234567890",
+            "instance_type": "t3.small",
+            "name": "app-server",
+            "sg_ids": [
+              "sg-n4"
+            ],
+            "iam_role_id": "role-ec2-n4"
+          }
+        }
+      },
+      {
+        "id": "n5",
+        "position": {
+          "x": 400,
+          "y": 280
+        },
+        "data": {
+          "resourceType": "RDS",
+          "label": "App Database",
+          "config": {
+            "engine": "postgres",
+            "engine_version": "15.4",
+            "instance_class": "db.t3.micro",
+            "allocated_storage": "20",
+            "name": "app-db",
+            "username": "admin",
+            "password": "changeme123!",
+            "storage_encrypted": "true",
+            "sg_ids": [
+              "sg-n5"
+            ]
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "structural"
+      },
+      {
+        "id": "e2",
+        "source": "n1",
+        "target": "n3",
+        "type": "structural"
+      },
+      {
+        "id": "e3",
+        "source": "n2",
+        "target": "n4",
+        "type": "structural"
+      },
+      {
+        "id": "e4",
+        "source": "n3",
+        "target": "n5",
+        "type": "structural"
+      },
+      {
+        "id": "e5",
+        "source": "n4",
+        "target": "n5",
+        "type": "traffic"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [
+      {
+        "id": "sg-n4",
+        "name": "app-server-sg",
+        "description": "Security group for App Server",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "443",
+            "cidr": "0.0.0.0/0",
+            "description": "HTTPS"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "tcp",
+            "port": "5432",
+            "cidr": "sg-n5",
+            "description": "To App Database"
+          }
+        ]
+      },
+      {
+        "id": "sg-n5",
+        "name": "app-db-sg",
+        "description": "Security group for App Database",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "5432",
+            "cidr": "sg-n4",
+            "description": "From App Server"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "-1",
+            "port": "0",
+            "cidr": "0.0.0.0/0",
+            "description": "All outbound"
+          }
+        ]
+      }
+    ],
+    "roles": [
+      {
+        "id": "role-ec2-n4",
+        "name": "app-server-role",
+        "policies": [
+          "AmazonSSMManagedInstanceCore"
+        ]
+      }
+    ]
+  }
+}

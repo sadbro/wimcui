@@ -1,0 +1,289 @@
+{
+  "type": "ECS",
+  "title": "ECS Service (Fargate)",
+  "description": "ECS runs containerized applications on AWS. With the Fargate launch type, AWS manages the underlying servers so you only define your container image, CPU, and memory.",
+  "connections": {
+    "parents": [
+      "Subnet"
+    ],
+    "trafficSources": [
+      "LoadBalancer",
+      "EC2",
+      "Public",
+      "Lambda",
+      "APIGateway"
+    ],
+    "trafficTargets": [
+      "RDS",
+      "EC2",
+      "ElastiCache",
+      "Kinesis"
+    ],
+    "associations": []
+  },
+  "practices": [
+    "Use Fargate for simplicity unless you need EC2 launch type for cost optimization on sustained workloads.",
+    "Task execution role and task role should follow least-privilege — only grant permissions the container actually needs.",
+    "Pull container images from ECR, not public Docker Hub, in production to avoid rate limits and supply-chain risk.",
+    "Store database credentials in SecretsManager and inject them as environment variables, never bake secrets into images."
+  ],
+  "configNotes": [
+    "Container image URI is required and must be accessible from the VPC (ECR endpoint or NAT Gateway needed).",
+    "CPU and memory are required and must use valid Fargate combinations (e.g., 0.25 vCPU / 512 MB).",
+    "Desired count sets how many tasks run; set to 2+ for high availability."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 350,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "VPC",
+          "label": "Production VPC",
+          "config": {
+            "cidr": "10.0.0.0/16",
+            "name": "prod-vpc"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 100,
+          "y": 350
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public Subnet A",
+          "config": {
+            "cidr": "10.0.1.0/24",
+            "az": "us-east-1a",
+            "name": "prod-public-a",
+            "visibility": "Public",
+            "availability_zone": "us-east-1a"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 600,
+          "y": 350
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Private Subnet A",
+          "config": {
+            "cidr": "10.0.10.0/24",
+            "az": "us-east-1a",
+            "name": "prod-private-a",
+            "visibility": "Private",
+            "availability_zone": "us-east-1a"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": {
+          "x": 100,
+          "y": 600
+        },
+        "data": {
+          "resourceType": "LoadBalancer",
+          "label": "API ALB",
+          "config": {
+            "type": "ALB",
+            "listenerPort": 443,
+            "listenerProtocol": "HTTPS",
+            "name": "prod-api-alb",
+            "load_balancer_type": "application",
+            "internal": "false",
+            "tg_port": "80",
+            "tg_protocol": "HTTP",
+            "listener_port": "443",
+            "listener_protocol": "HTTPS",
+            "sg_ids": [
+              "sg-n4"
+            ]
+          }
+        }
+      },
+      {
+        "id": "n5",
+        "position": {
+          "x": 400,
+          "y": 600
+        },
+        "data": {
+          "resourceType": "ECS",
+          "label": "API Service",
+          "config": {
+            "imageUri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/api-service:latest",
+            "cpu": "512",
+            "memory": "1024",
+            "desiredCount": 2,
+            "name": "prod-api-service",
+            "sgCapable": true,
+            "iamCapable": true,
+            "launch_type": "FARGATE",
+            "image": "nginx:latest",
+            "desired_count": "2",
+            "sg_ids": [
+              "sg-n5"
+            ],
+            "iam_role_id": "role-ecs-n5"
+          }
+        }
+      },
+      {
+        "id": "n6",
+        "position": {
+          "x": 700,
+          "y": 600
+        },
+        "data": {
+          "resourceType": "RDS",
+          "label": "App Database",
+          "config": {
+            "engine": "postgres",
+            "engineVersion": "15.4",
+            "instanceClass": "db.t3.medium",
+            "storage": 100,
+            "name": "prod-app-db",
+            "engine_version": "15.3",
+            "instance_class": "db.t3.micro",
+            "allocated_storage": "20",
+            "username": "admin",
+            "password": "changeme123!",
+            "storage_encrypted": "true",
+            "sg_ids": [
+              "sg-n6"
+            ]
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "structural"
+      },
+      {
+        "id": "e2",
+        "source": "n1",
+        "target": "n3",
+        "type": "structural"
+      },
+      {
+        "id": "e3",
+        "source": "n2",
+        "target": "n4",
+        "type": "structural"
+      },
+      {
+        "id": "e4",
+        "source": "n3",
+        "target": "n5",
+        "type": "structural"
+      },
+      {
+        "id": "e5",
+        "source": "n3",
+        "target": "n6",
+        "type": "structural"
+      },
+      {
+        "id": "e6",
+        "source": "n4",
+        "target": "n5",
+        "type": "traffic"
+      },
+      {
+        "id": "e7",
+        "source": "n5",
+        "target": "n6",
+        "type": "traffic"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [
+      {
+        "id": "sg-n4",
+        "name": "prod-api-alb-sg",
+        "description": "Security group for API ALB",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "443",
+            "cidr": "0.0.0.0/0",
+            "description": "HTTPS from internet"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "tcp",
+            "port": "80",
+            "cidr": "sg-n5",
+            "description": "To API Service"
+          }
+        ]
+      },
+      {
+        "id": "sg-n5",
+        "name": "prod-api-service-sg",
+        "description": "Security group for API Service",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "80",
+            "cidr": "sg-n4",
+            "description": "From API ALB"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "tcp",
+            "port": "5432",
+            "cidr": "sg-n6",
+            "description": "To App Database"
+          }
+        ]
+      },
+      {
+        "id": "sg-n6",
+        "name": "prod-app-db-sg",
+        "description": "Security group for App Database",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "5432",
+            "cidr": "sg-n5",
+            "description": "From API Service"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "-1",
+            "port": "0",
+            "cidr": "0.0.0.0/0",
+            "description": "All outbound"
+          }
+        ]
+      }
+    ],
+    "roles": [
+      {
+        "id": "role-ecs-n5",
+        "name": "prod-api-service-task-role",
+        "policies": [
+          "AmazonECSTaskExecutionRolePolicy"
+        ]
+      }
+    ]
+  }
+}

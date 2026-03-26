@@ -1,0 +1,103 @@
+{
+  "type": "WAF",
+  "title": "WAF",
+  "description": "Web Application Firewall that protects against common web exploits — SQL injection, XSS, bot traffic, and DDoS. Attaches to ALB, CloudFront, or API Gateway as a shield layer.",
+  "connections": {
+    "parents": [],
+    "trafficSources": [],
+    "trafficTargets": [],
+    "associations": [
+      "LoadBalancer",
+      "CloudFront",
+      "APIGateway"
+    ]
+  },
+  "practices": [
+    "Start with AWS Managed Rule Groups (AWSManagedRulesCommonRuleSet, SQLiRuleSet) before writing custom rules.",
+    "Use rate-based rules to protect against brute force and DDoS — set limits based on your normal traffic patterns.",
+    "Attach WAF to CloudFront for global protection, or to ALB/APIGW for regional protection.",
+    "Enable logging to S3 or CloudWatch to understand what WAF is blocking — false positives are common initially."
+  ],
+  "configNotes": [
+    "WAF name is required.",
+    "Scope: REGIONAL (for ALB, API Gateway) or CLOUDFRONT (for CloudFront distributions).",
+    "Managed rule groups provide pre-built protection against common attacks.",
+    "Default action (allow or block) determines what happens to requests that don't match any rule."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 250,
+          "y": 50
+        },
+        "data": {
+          "resourceType": "WAF",
+          "label": "Web ACL",
+          "config": {
+            "waf_name": "web-acl",
+            "scope": "REGIONAL",
+            "default_action": "allow",
+            "name": "web-acl"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 100,
+          "y": 220
+        },
+        "data": {
+          "resourceType": "LoadBalancer",
+          "label": "Web ALB",
+          "config": {
+            "lb_type": "alb",
+            "name": "web-alb",
+            "load_balancer_type": "application",
+            "internal": "false",
+            "tg_port": "80",
+            "tg_protocol": "HTTP",
+            "listener_port": "443",
+            "listener_protocol": "HTTPS"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 400,
+          "y": 220
+        },
+        "data": {
+          "resourceType": "APIGateway",
+          "label": "API",
+          "config": {
+            "name": "api",
+            "api_name": "my-api",
+            "api_type": "REST",
+            "stage_name": "prod"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "association"
+      },
+      {
+        "id": "e2",
+        "source": "n1",
+        "target": "n3",
+        "type": "association"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [],
+    "roles": []
+  }
+}

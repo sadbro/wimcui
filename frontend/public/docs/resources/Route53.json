@@ -1,0 +1,128 @@
+{
+  "type": "Route53",
+  "title": "Route 53",
+  "description": "Managed DNS service. Maps domain names to AWS resources like ALBs, API Gateways, and EC2 instances. Supports health checks and DNS-based routing policies.",
+  "connections": {
+    "parents": [],
+    "trafficSources": [
+      "Public"
+    ],
+    "trafficTargets": [
+      "LoadBalancer",
+      "APIGateway",
+      "EC2"
+    ],
+    "associations": []
+  },
+  "practices": [
+    "Use alias records for AWS resources (ALB, CloudFront, S3) — they're free and resolve faster than CNAMEs.",
+    "Set appropriate TTL: low (60s) during migrations for fast failover, higher (300s+) for stable records to reduce DNS queries.",
+    "Use health checks with failover routing for high availability across regions.",
+    "Register domains through Route53 for simplest integration, or transfer DNS to Route53 hosted zones."
+  ],
+  "configNotes": [
+    "Hosted zone name (domain) is required.",
+    "Record type: A (IPv4), AAAA (IPv6), CNAME, or Alias.",
+    "Routing policy: Simple, Weighted, Latency-based, Failover, or Geolocation."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 100,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "Route53",
+          "label": "example.com",
+          "config": {
+            "name": "main-dns",
+            "hosted_zone_name": "example.com",
+            "zone_type": "public"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 350,
+          "y": 50
+        },
+        "data": {
+          "resourceType": "LoadBalancer",
+          "label": "Web ALB",
+          "config": {
+            "lb_type": "alb",
+            "name": "web-alb",
+            "load_balancer_type": "application",
+            "internal": "false",
+            "tg_port": "80",
+            "tg_protocol": "HTTP",
+            "listener_port": "443",
+            "listener_protocol": "HTTPS",
+            "sg_ids": [
+              "sg-n2"
+            ]
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 350,
+          "y": 180
+        },
+        "data": {
+          "resourceType": "APIGateway",
+          "label": "API",
+          "config": {
+            "name": "api",
+            "api_name": "my-api",
+            "api_type": "REST",
+            "stage_name": "prod"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "traffic"
+      },
+      {
+        "id": "e2",
+        "source": "n1",
+        "target": "n3",
+        "type": "traffic"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [
+      {
+        "id": "sg-n2",
+        "name": "web-alb-sg",
+        "description": "Security group for Web ALB",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "443",
+            "cidr": "0.0.0.0/0",
+            "description": "HTTPS from internet"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "-1",
+            "port": "0",
+            "cidr": "0.0.0.0/0",
+            "description": "All outbound"
+          }
+        ]
+      }
+    ],
+    "roles": []
+  }
+}

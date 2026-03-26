@@ -1,0 +1,97 @@
+{
+  "type": "SQS",
+  "title": "SQS Queue",
+  "description": "Fully managed message queue for decoupling services. Messages are retained until processed. Supports standard (at-least-once, best-effort ordering) and FIFO (exactly-once, strict ordering) queues.",
+  "connections": {
+    "parents": [],
+    "trafficSources": [],
+    "trafficTargets": [],
+    "associations": []
+  },
+  "practices": [
+    "Always configure a dead-letter queue (DLQ) — messages that fail processing repeatedly need a place to land for inspection.",
+    "Use FIFO queues only when ordering matters. Standard queues have much higher throughput.",
+    "Set visibility timeout longer than your consumer's processing time, or messages get re-delivered mid-processing.",
+    "SQS is accessed via IAM, not network edges. Your compute resources need sqs:SendMessage and sqs:ReceiveMessage permissions."
+  ],
+  "configNotes": [
+    "Queue name is required. FIFO queues must end with .fifo suffix.",
+    "Message retention period defaults to 4 days (max 14 days).",
+    "Visibility timeout should match your consumer's max processing time."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 100,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "EC2",
+          "label": "Producer",
+          "config": {
+            "name": "producer",
+            "instance_type": "t3.small",
+            "ami": "ami-0abcdef1234567890",
+            "iam_role_id": "role-ec2-n1"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 350,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "SQS",
+          "label": "Task Queue",
+          "config": {
+            "name": "task-queue",
+            "queue_name": "task-queue",
+            "fifo": "false"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 600,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "Worker",
+          "config": {
+            "runtime": "python3.12",
+            "name": "queue-worker",
+            "handler": "index.handler",
+            "memory_size": "256",
+            "timeout": "30",
+            "iam_role_id": "role-lambda-n3"
+          }
+        }
+      }
+    ],
+    "edges": [],
+    "version": 1,
+    "securityGroups": [],
+    "roles": [
+      {
+        "id": "role-ec2-n1",
+        "name": "producer-role",
+        "policies": [
+          "AmazonSSMManagedInstanceCore"
+        ]
+      },
+      {
+        "id": "role-lambda-n3",
+        "name": "queue-worker-exec-role",
+        "policies": [
+          "AWSLambdaBasicExecutionRole"
+        ]
+      }
+    ]
+  }
+}

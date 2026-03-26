@@ -40,65 +40,90 @@ function SectionLabel({ label }) {
   );
 }
 
-function ResourceTile({ type, color, label, onDragStart }) {
+function ResourceTile({ type, color, label, onDragStart, onInfoClick }) {
   const [hovered, setHovered] = useState(false);
   const IconComponent = getResourceIcon(type);
 
   return (
     <div
-      onDragStart={(e) => onDragStart(e, type)}
-      draggable
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      title={label || type}
       style={{
         display: "flex", flexDirection: "column",
         alignItems: "center", gap: 5,
-        cursor: "grab", userSelect: "none",
+        position: "relative",
         transition: "transform 0.15s",
         transform: hovered ? "translateY(-2px)" : "none",
       }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
-      {/* Icon tile — transparent body, colored border only */}
-      <div style={{
-        width: 52, height: 52,
-        borderRadius: 10,
-        background: hovered ? `${color}22` : `${color}11`,
-        border: `2px solid ${hovered ? color : `${color}bb`}`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        transition: "border-color 0.15s, box-shadow 0.15s",
-        flexShrink: 0,
-        boxShadow: hovered ? `0 0 12px ${color}88` : "none",
-      }}>
-        {IconComponent ? (
-          <IconComponent size={30} />
-        ) : (
-          <span style={{
-            fontSize: 18, color: color,
-            fontWeight: 700, lineHeight: 1,
-            fontFamily: "system-ui",
-          }}>
-            {(label || type).charAt(0)}
-          </span>
-        )}
+      {/* Info icon — top-right corner, visible on hover */}
+      {hovered && onInfoClick && (
+        <span
+          onClick={(e) => { e.stopPropagation(); onInfoClick(type); }}
+          title={`Docs: ${label || type}`}
+          style={{
+            position: "absolute", top: -2, right: -2, zIndex: 2,
+            width: 16, height: 16, borderRadius: "50%",
+            background: "var(--bg-elevated)", border: `1.5px solid ${color}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", fontSize: 9, fontWeight: 700, color,
+            lineHeight: 1,
+          }}
+        >
+          ?
+        </span>
+      )}
+      <div
+        onDragStart={(e) => onDragStart(e, type)}
+        draggable
+        title={label || type}
+        style={{
+          display: "flex", flexDirection: "column",
+          alignItems: "center", gap: 5,
+          cursor: "grab", userSelect: "none",
+        }}
+      >
+        {/* Icon tile — transparent body, colored border only */}
+        <div style={{
+          width: 52, height: 52,
+          borderRadius: 10,
+          background: hovered ? `${color}22` : `${color}11`,
+          border: `2px solid ${hovered ? color : `${color}bb`}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "border-color 0.15s, box-shadow 0.15s",
+          flexShrink: 0,
+          boxShadow: hovered ? `0 0 12px ${color}88` : "none",
+        }}>
+          {IconComponent ? (
+            <IconComponent size={30} />
+          ) : (
+            <span style={{
+              fontSize: 18, color: color,
+              fontWeight: 700, lineHeight: 1,
+              fontFamily: "system-ui",
+            }}>
+              {(label || type).charAt(0)}
+            </span>
+          )}
+        </div>
+        {/* Label */}
+        <span style={{
+          ...MONO, fontSize: 9, fontWeight: 600,
+          color: hovered ? color : "var(--text-muted)",
+          textAlign: "center", lineHeight: 1.2,
+          maxWidth: 56, wordBreak: "break-word",
+          textTransform: "uppercase", letterSpacing: 0.3,
+          transition: "color 0.15s",
+        }}>
+          {label || type}
+        </span>
       </div>
-      {/* Label */}
-      <span style={{
-        ...MONO, fontSize: 9, fontWeight: 600,
-        color: hovered ? color : "var(--text-muted)",
-        textAlign: "center", lineHeight: 1.2,
-        maxWidth: 56, wordBreak: "break-word",
-        textTransform: "uppercase", letterSpacing: 0.3,
-        transition: "color 0.15s",
-      }}>
-        {label || type}
-      </span>
     </div>
   );
 }
 
 // Grid wrapper for a category of resource tiles
-function TileGrid({ resources, onDragStart }) {
+function TileGrid({ resources, onDragStart, onInfoClick }) {
   return (
     <div style={{
       display: "grid",
@@ -107,26 +132,26 @@ function TileGrid({ resources, onDragStart }) {
       marginBottom: 6,
     }}>
       {resources.map((r) => (
-        <ResourceTile key={r.type} {...r} onDragStart={onDragStart} />
+        <ResourceTile key={r.type} {...r} onDragStart={onDragStart} onInfoClick={onInfoClick} />
       ))}
     </div>
   );
 }
 
-function ResourcesTab({ onDragStart }) {
+function ResourcesTab({ onDragStart, onInfoClick }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 2 }}>
         <SectionLabel label="Network" />
-        <TileGrid resources={networkResources} onDragStart={onDragStart} />
+        <TileGrid resources={networkResources} onDragStart={onDragStart} onInfoClick={onInfoClick} />
         <SectionLabel label="Compute & Data" />
-        <TileGrid resources={computeResources} onDragStart={onDragStart} />
+        <TileGrid resources={computeResources} onDragStart={onDragStart} onInfoClick={onInfoClick} />
         <SectionLabel label="Infrastructure" />
-        <TileGrid resources={infraResources} onDragStart={onDragStart} />
+        <TileGrid resources={infraResources} onDragStart={onDragStart} onInfoClick={onInfoClick} />
         {globalResources.length > 0 && (
           <>
             <SectionLabel label="Global Services" />
-            <TileGrid resources={globalResources} onDragStart={onDragStart} />
+            <TileGrid resources={globalResources} onDragStart={onDragStart} onInfoClick={onInfoClick} />
           </>
         )}
       </div>
@@ -165,6 +190,7 @@ export default function ResourcePanel({
   roles, onRolesChange,
   nodes, edges, onAssignRole,
   securityGroups, onSGChange, onAssignSG,
+  onOpenDocs,
 }) {
   const [activeTab, setActiveTab] = useState(0);
   const fileInputRef = useRef(null);
@@ -264,9 +290,18 @@ export default function ResourcePanel({
             </button>
           ))}
         </div>
-        <button onClick={onReviewCanvas} style={solidBtnStyle}>
-          Review Canvas
-        </button>
+        <div style={{ display: "flex", gap: 4 }}>
+          <button onClick={onReviewCanvas} style={{ ...solidBtnStyle, flex: 1 }}>
+            Review Canvas
+          </button>
+          <button
+            onClick={() => onOpenDocs && onOpenDocs(null)}
+            title="Resource Docs"
+            style={{ ...ghostBtnStyle, flex: "0 0 36px", padding: "7px 0", fontSize: 14 }}
+          >
+            ?
+          </button>
+        </div>
       </div>
 
       {/* Tab bar */}
@@ -319,6 +354,7 @@ export default function ResourcePanel({
         {activeTab === 0 && (
           <ResourcesTab
             onDragStart={onDragStart}
+            onInfoClick={onOpenDocs}
           />
         )}
         {activeTab === 1 && (

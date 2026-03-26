@@ -1,0 +1,78 @@
+{
+  "type": "SNS",
+  "title": "SNS Topic",
+  "description": "Managed pub/sub messaging service. Publishes messages to multiple subscribers simultaneously — Lambda, SQS, HTTP endpoints, email, or SMS. Fan-out pattern made simple.",
+  "connections": {
+    "parents": [],
+    "trafficSources": [],
+    "trafficTargets": [],
+    "associations": []
+  },
+  "practices": [
+    "Use SNS → SQS fan-out instead of SNS → Lambda directly. SQS gives you retry, batching, and dead-letter queues.",
+    "Enable message filtering on subscriptions to route messages to the right consumers without custom logic.",
+    "For cross-account publishing, use resource-based policies on the topic.",
+    "SNS is accessed via IAM — compute resources need sns:Publish permission."
+  ],
+  "configNotes": [
+    "Topic name is required.",
+    "Choose Standard (high throughput, best-effort ordering) or FIFO (strict ordering, deduplication).",
+    "FIFO topics can only deliver to SQS FIFO queues."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 250,
+          "y": 50
+        },
+        "data": {
+          "resourceType": "SNS",
+          "label": "Order Events",
+          "config": {
+            "name": "order-events",
+            "topic_name": "events",
+            "fifo": "false"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 100,
+          "y": 220
+        },
+        "data": {
+          "resourceType": "SQS",
+          "label": "Email Queue",
+          "config": {
+            "name": "email-queue",
+            "queue_name": "task-queue",
+            "fifo": "false"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 400,
+          "y": 220
+        },
+        "data": {
+          "resourceType": "SQS",
+          "label": "Inventory Queue",
+          "config": {
+            "name": "inventory-queue",
+            "queue_name": "task-queue",
+            "fifo": "false"
+          }
+        }
+      }
+    ],
+    "edges": [],
+    "version": 1,
+    "securityGroups": [],
+    "roles": []
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "type": "CloudFront",
+  "title": "CloudFront",
+  "description": "Global CDN that caches and delivers content from edge locations worldwide. Reduces latency for static assets, APIs, and entire websites. Integrates with S3, ALB, and API Gateway as origins.",
+  "connections": {
+    "parents": [],
+    "trafficSources": [],
+    "trafficTargets": [],
+    "associations": [
+      "S3",
+      "LoadBalancer",
+      "APIGateway"
+    ]
+  },
+  "practices": [
+    "S3 origins should NOT be public — use CloudFront Origin Access Control (OAC) for secure access.",
+    "ACM certificates for CloudFront must be in us-east-1, regardless of your application region.",
+    "Enable HTTPS-only viewer policy. Never serve content over plain HTTP in production.",
+    "Set appropriate TTLs per content type: long for static assets (images, CSS), short for API responses."
+  ],
+  "configNotes": [
+    "Origin type is required: S3 bucket, ALB, or API Gateway.",
+    "Origin ID identifies which resource to fetch content from.",
+    "Price class controls which edge locations are used (more locations = higher cost).",
+    "Default TTL controls how long content is cached at edge locations."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 100,
+          "y": 50
+        },
+        "data": {
+          "resourceType": "Route53",
+          "label": "cdn.example.com",
+          "config": {
+            "name": "cdn-dns",
+            "hosted_zone_name": "example.com",
+            "zone_type": "public"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 350,
+          "y": 50
+        },
+        "data": {
+          "resourceType": "CloudFront",
+          "label": "CDN",
+          "config": {
+            "price_class": "PriceClass_100",
+            "viewer_protocol_policy": "redirect-to-https",
+            "name": "cdn",
+            "origin_type": "S3"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 350,
+          "y": 220
+        },
+        "data": {
+          "resourceType": "S3",
+          "label": "Static Assets",
+          "config": {
+            "name": "assets-bucket",
+            "bucket_name": "my-data-bucket",
+            "versioning": "Enabled",
+            "encryption": "SSE-S3 (AES-256)",
+            "acl": "private",
+            "block_public_access": "true"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": {
+          "x": 600,
+          "y": 50
+        },
+        "data": {
+          "resourceType": "ACM",
+          "label": "SSL Cert",
+          "config": {
+            "domain_name": "cdn.example.com",
+            "validation_method": "DNS",
+            "name": "cdn-cert"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n2",
+        "target": "n3",
+        "type": "association"
+      },
+      {
+        "id": "e2",
+        "source": "n4",
+        "target": "n2",
+        "type": "association"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [],
+    "roles": []
+  }
+}

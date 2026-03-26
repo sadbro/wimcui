@@ -1,0 +1,198 @@
+{
+  "type": "Subnet",
+  "title": "Subnet",
+  "description": "A subnet is a range of IP addresses within a VPC, scoped to a single Availability Zone. Subnets are either public (routed to an Internet Gateway) or private (routed through a NAT Gateway or isolated).",
+  "connections": {
+    "parents": [
+      "VPC"
+    ],
+    "trafficSources": [],
+    "trafficTargets": [],
+    "associations": [
+      "RouteTable"
+    ]
+  },
+  "practices": [
+    "Use subnets across multiple Availability Zones for high availability.",
+    "A subnet is public only if its associated route table has a route to an Internet Gateway.",
+    "Private subnets should route outbound traffic through a NAT Gateway, not directly to an IGW.",
+    "Don't place all resources in a single subnet — separate by tier (web, app, data) for security."
+  ],
+  "configNotes": [
+    "CIDR block is required and must fall within the parent VPC's CIDR range.",
+    "Availability Zone is required and cannot be changed after creation."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 300,
+          "y": 50
+        },
+        "data": {
+          "resourceType": "VPC",
+          "label": "App VPC",
+          "config": {
+            "cidr": "10.0.0.0/16",
+            "name": "app-vpc"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 100,
+          "y": 300
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public Subnet",
+          "config": {
+            "cidr": "10.0.1.0/24",
+            "az": "us-east-1a",
+            "name": "public-subnet-1a",
+            "visibility": "Public",
+            "availability_zone": "us-east-1a"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 500,
+          "y": 300
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Private Subnet",
+          "config": {
+            "cidr": "10.0.2.0/24",
+            "az": "us-east-1b",
+            "name": "private-subnet-1b",
+            "visibility": "Private",
+            "availability_zone": "us-east-1b"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": {
+          "x": 100,
+          "y": 550
+        },
+        "data": {
+          "resourceType": "RouteTable",
+          "label": "Public RT",
+          "config": {
+            "routes": [
+              {
+                "destination": "10.0.0.0/16",
+                "target": "local"
+              },
+              {
+                "destination": "0.0.0.0/0",
+                "target": "igw-abc123"
+              }
+            ],
+            "name": "public-rt"
+          }
+        }
+      },
+      {
+        "id": "n5",
+        "position": {
+          "x": 500,
+          "y": 550
+        },
+        "data": {
+          "resourceType": "RouteTable",
+          "label": "Private RT",
+          "config": {
+            "routes": [
+              {
+                "destination": "10.0.0.0/16",
+                "target": "local"
+              },
+              {
+                "destination": "0.0.0.0/0",
+                "target": "nat-def456"
+              }
+            ],
+            "name": "private-rt"
+          }
+        }
+      },
+      {
+        "id": "n6",
+        "position": {
+          "x": 100,
+          "y": 800
+        },
+        "data": {
+          "resourceType": "IGW",
+          "label": "Internet Gateway",
+          "config": {
+            "name": "app-igw"
+          }
+        }
+      },
+      {
+        "id": "n7",
+        "position": {
+          "x": 500,
+          "y": 800
+        },
+        "data": {
+          "resourceType": "NATGateway",
+          "label": "NAT Gateway",
+          "config": {
+            "name": "app-nat",
+            "connectivity_type": "public"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "structural"
+      },
+      {
+        "id": "e2",
+        "source": "n1",
+        "target": "n3",
+        "type": "structural"
+      },
+      {
+        "id": "e3",
+        "source": "n2",
+        "target": "n4",
+        "type": "association"
+      },
+      {
+        "id": "e4",
+        "source": "n3",
+        "target": "n5",
+        "type": "association"
+      },
+      {
+        "id": "e5",
+        "source": "n4",
+        "target": "n6",
+        "type": "association"
+      },
+      {
+        "id": "e6",
+        "source": "n5",
+        "target": "n7",
+        "type": "association"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [],
+    "roles": []
+  }
+}

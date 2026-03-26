@@ -1,0 +1,88 @@
+{
+  "type": "EventBridge",
+  "title": "EventBridge",
+  "description": "Serverless event bus for routing events between AWS services, SaaS apps, and your own applications. Rules match events and route them to targets like Lambda, SQS, or Step Functions.",
+  "connections": {
+    "parents": [],
+    "trafficSources": [],
+    "trafficTargets": [],
+    "associations": []
+  },
+  "practices": [
+    "Use EventBridge over SNS when you need content-based filtering, scheduling, or cross-account event routing.",
+    "Define rules with specific event patterns — avoid catch-all rules that trigger on everything.",
+    "Use the default event bus for AWS service events, custom buses for your application events.",
+    "EventBridge is accessed via IAM. Producers need events:PutEvents, targets are invoked via resource-based policies."
+  ],
+  "configNotes": [
+    "Event bus name — use 'default' for AWS service events or create a custom bus.",
+    "Rules define which events to match using event patterns (JSON-based matching).",
+    "Schedule expressions support cron and rate syntax for time-based triggers."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 250,
+          "y": 50
+        },
+        "data": {
+          "resourceType": "EventBridge",
+          "label": "App Events",
+          "config": {
+            "name": "app-events",
+            "bus_name": "app-events"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 100,
+          "y": 220
+        },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "Audit Logger",
+          "config": {
+            "runtime": "python3.12",
+            "name": "audit-fn",
+            "handler": "index.handler",
+            "memory_size": "256",
+            "timeout": "30",
+            "iam_role_id": "role-lambda-n2"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 400,
+          "y": 220
+        },
+        "data": {
+          "resourceType": "SQS",
+          "label": "Alert Queue",
+          "config": {
+            "name": "alert-queue",
+            "queue_name": "task-queue",
+            "fifo": "false"
+          }
+        }
+      }
+    ],
+    "edges": [],
+    "version": 1,
+    "securityGroups": [],
+    "roles": [
+      {
+        "id": "role-lambda-n2",
+        "name": "audit-fn-exec-role",
+        "policies": [
+          "AWSLambdaBasicExecutionRole"
+        ]
+      }
+    ]
+  }
+}

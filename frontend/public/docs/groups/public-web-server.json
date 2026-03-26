@@ -1,0 +1,156 @@
+{
+  "type": "group",
+  "title": "Public Web Server",
+  "description": "The simplest internet-facing architecture. A single EC2 instance in a public subnet, accessible via an Internet Gateway. Use this for dev/staging environments, prototypes, or simple single-server deployments.",
+  "resources": [
+    "VPC",
+    "Subnet",
+    "IGW",
+    "RouteTable",
+    "EC2"
+  ],
+  "practices": [
+    "Always attach a Security Group to EC2 — without one, the default VPC SG allows all outbound but no inbound, leaving your server unreachable.",
+    "Route Table must have a 0.0.0.0/0 → IGW route for the subnet to be truly public. Without this, the IGW does nothing.",
+    "Use a /24 CIDR for the subnet (256 IPs) in dev. Don't waste a /16 on a single-server setup.",
+    "This pattern has no redundancy. For production, use a Load Balanced API pattern with multiple AZs instead.",
+    "Restrict SSH (port 22) to your IP only — never open 0.0.0.0/0 on SSH."
+  ],
+  "configNotes": [
+    "VPC CIDR should be large enough for future growth (e.g., 10.0.0.0/16).",
+    "Subnet CIDR must be within the VPC CIDR range.",
+    "Route Table needs a route: destination 0.0.0.0/0 → target IGW.",
+    "EC2 needs an AMI, instance type, and should be placed in the public subnet."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 200,
+          "y": 0
+        },
+        "data": {
+          "resourceType": "VPC",
+          "label": "Dev VPC",
+          "config": {
+            "cidr": "10.0.0.0/16",
+            "name": "dev-vpc"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 200,
+          "y": 140
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public Subnet",
+          "config": {
+            "cidr": "10.0.1.0/24",
+            "az": "us-east-1a",
+            "name": "public-subnet",
+            "visibility": "Public",
+            "availability_zone": "us-east-1a"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 450,
+          "y": 0
+        },
+        "data": {
+          "resourceType": "IGW",
+          "label": "Internet GW",
+          "config": {
+            "name": "dev-igw"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": {
+          "x": 450,
+          "y": 140
+        },
+        "data": {
+          "resourceType": "RouteTable",
+          "label": "Public RT",
+          "config": {
+            "routes": [
+              {
+                "destination": "0.0.0.0/0",
+                "target": "n3"
+              }
+            ],
+            "name": "public-rt"
+          }
+        }
+      },
+      {
+        "id": "n5",
+        "position": {
+          "x": 200,
+          "y": 300
+        },
+        "data": {
+          "resourceType": "EC2",
+          "label": "Web Server",
+          "config": {
+            "ami": "ami-0abcdef1234567890",
+            "instance_type": "t3.small",
+            "name": "web-server",
+            "iam_role_id": "role-ec2-n5"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "structural"
+      },
+      {
+        "id": "e2",
+        "source": "n1",
+        "target": "n3",
+        "type": "structural"
+      },
+      {
+        "id": "e3",
+        "source": "n2",
+        "target": "n5",
+        "type": "structural"
+      },
+      {
+        "id": "e4",
+        "source": "n4",
+        "target": "n2",
+        "type": "association"
+      },
+      {
+        "id": "e5",
+        "source": "n4",
+        "target": "n3",
+        "type": "association"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [],
+    "roles": [
+      {
+        "id": "role-ec2-n5",
+        "name": "web-server-role",
+        "policies": [
+          "AmazonSSMManagedInstanceCore"
+        ]
+      }
+    ]
+  }
+}

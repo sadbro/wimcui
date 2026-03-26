@@ -1,0 +1,278 @@
+{
+  "type": "LoadBalancer",
+  "title": "Load Balancer",
+  "description": "Distributes incoming traffic across multiple targets. ALB handles HTTP/HTTPS with path-based routing, NLB handles TCP/UDP with ultra-low latency.",
+  "connections": {
+    "parents": [
+      "Subnet"
+    ],
+    "trafficSources": [
+      "Public",
+      "EC2",
+      "Route53"
+    ],
+    "trafficTargets": [
+      "EC2",
+      "ECS",
+      "Lambda",
+      "ASG"
+    ],
+    "associations": []
+  },
+  "practices": [
+    "ALB requires at least 2 subnets in different Availability Zones — this is an AWS hard requirement.",
+    "Prefer ALB for HTTP/HTTPS workloads and NLB for raw TCP/UDP or extreme performance needs.",
+    "Configure health checks with an appropriate path and thresholds — unhealthy targets get no traffic.",
+    "Use HTTPS listeners with ACM certificates for production. Never expose HTTP-only endpoints publicly."
+  ],
+  "configNotes": [
+    "Load balancer type (ALB or NLB) is required.",
+    "Listener port and protocol must be specified.",
+    "Health check path is critical for ALB — use a lightweight endpoint like /health.",
+    "Must be placed in at least 2 subnets across different AZs."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 250,
+          "y": 0
+        },
+        "data": {
+          "resourceType": "VPC",
+          "label": "Web VPC",
+          "config": {
+            "cidr": "10.0.0.0/16",
+            "name": "web-vpc"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 100,
+          "y": 120
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public AZ-A",
+          "config": {
+            "cidr": "10.0.1.0/24",
+            "az": "us-east-1a",
+            "name": "pub-a",
+            "visibility": "Public",
+            "availability_zone": "us-east-1a"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 400,
+          "y": 120
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public AZ-B",
+          "config": {
+            "cidr": "10.0.2.0/24",
+            "az": "us-east-1b",
+            "name": "pub-b",
+            "visibility": "Public",
+            "availability_zone": "us-east-1b"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": {
+          "x": 250,
+          "y": 260
+        },
+        "data": {
+          "resourceType": "LoadBalancer",
+          "label": "Web ALB",
+          "config": {
+            "lb_type": "alb",
+            "listener_port": "443",
+            "listener_protocol": "HTTPS",
+            "name": "web-alb",
+            "load_balancer_type": "application",
+            "internal": "false",
+            "tg_port": "80",
+            "tg_protocol": "HTTP",
+            "sg_ids": [
+              "sg-n4"
+            ]
+          }
+        }
+      },
+      {
+        "id": "n5",
+        "position": {
+          "x": 100,
+          "y": 400
+        },
+        "data": {
+          "resourceType": "EC2",
+          "label": "Web Server 1",
+          "config": {
+            "ami": "ami-0abcdef1234567890",
+            "instance_type": "t3.small",
+            "name": "web-1",
+            "sg_ids": [
+              "sg-n5"
+            ],
+            "iam_role_id": "role-ec2-n5"
+          }
+        }
+      },
+      {
+        "id": "n6",
+        "position": {
+          "x": 400,
+          "y": 400
+        },
+        "data": {
+          "resourceType": "EC2",
+          "label": "Web Server 2",
+          "config": {
+            "ami": "ami-0abcdef1234567890",
+            "instance_type": "t3.small",
+            "name": "web-2",
+            "sg_ids": [
+              "sg-n6"
+            ],
+            "iam_role_id": "role-ec2-n5"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "structural"
+      },
+      {
+        "id": "e2",
+        "source": "n1",
+        "target": "n3",
+        "type": "structural"
+      },
+      {
+        "id": "e3",
+        "source": "n2",
+        "target": "n4",
+        "type": "structural"
+      },
+      {
+        "id": "e4",
+        "source": "n2",
+        "target": "n5",
+        "type": "structural"
+      },
+      {
+        "id": "e5",
+        "source": "n3",
+        "target": "n6",
+        "type": "structural"
+      },
+      {
+        "id": "e6",
+        "source": "n4",
+        "target": "n5",
+        "type": "traffic"
+      },
+      {
+        "id": "e7",
+        "source": "n4",
+        "target": "n6",
+        "type": "traffic"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [
+      {
+        "id": "sg-n4",
+        "name": "web-alb-sg",
+        "description": "Security group for Web ALB",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "443",
+            "cidr": "0.0.0.0/0",
+            "description": "HTTPS from internet"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "tcp",
+            "port": "80",
+            "cidr": "sg-n5",
+            "description": "To Web Server 1"
+          },
+          {
+            "protocol": "tcp",
+            "port": "80",
+            "cidr": "sg-n6",
+            "description": "To Web Server 2"
+          }
+        ]
+      },
+      {
+        "id": "sg-n5",
+        "name": "web-1-sg",
+        "description": "Security group for Web Server 1",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "80",
+            "cidr": "sg-n4",
+            "description": "From Web ALB"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "-1",
+            "port": "0",
+            "cidr": "0.0.0.0/0",
+            "description": "All outbound"
+          }
+        ]
+      },
+      {
+        "id": "sg-n6",
+        "name": "web-2-sg",
+        "description": "Security group for Web Server 2",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "80",
+            "cidr": "sg-n4",
+            "description": "From Web ALB"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "-1",
+            "port": "0",
+            "cidr": "0.0.0.0/0",
+            "description": "All outbound"
+          }
+        ]
+      }
+    ],
+    "roles": [
+      {
+        "id": "role-ec2-n5",
+        "name": "web-1-role",
+        "policies": [
+          "AmazonSSMManagedInstanceCore"
+        ]
+      }
+    ]
+  }
+}

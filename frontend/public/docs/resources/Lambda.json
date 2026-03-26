@@ -1,0 +1,135 @@
+{
+  "type": "Lambda",
+  "title": "Lambda",
+  "description": "Serverless compute that runs code in response to events. No servers to manage — you pay only for execution time. Supports Node.js, Python, Go, Java, and more. Accesses S3, DynamoDB, SQS, and SNS via IAM (not traffic edges).",
+  "connections": {
+    "parents": [],
+    "trafficSources": [
+      "APIGateway",
+      "LoadBalancer",
+      "Kinesis"
+    ],
+    "trafficTargets": [
+      "RDS",
+      "ECS",
+      "ElastiCache",
+      "EC2",
+      "Kinesis"
+    ],
+    "associations": []
+  },
+  "practices": [
+    "Avoid placing Lambda in a VPC unless it needs access to private resources like RDS — VPC adds cold start latency.",
+    "Set memory appropriately. CPU scales proportionally with memory, so more memory = faster execution.",
+    "Use environment variables for configuration, never hardcode secrets. Use SecretsManager for sensitive values.",
+    "Design for short execution. Max timeout is 15 minutes — if you need longer, use Step Functions or ECS."
+  ],
+  "configNotes": [
+    "Runtime is required (e.g., nodejs20.x, python3.12).",
+    "Handler specifies the entry point (e.g., index.handler).",
+    "Memory ranges from 128MB to 10GB. Default 128MB is usually too low.",
+    "Timeout defaults to 3 seconds — increase for DB-connected functions."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 100,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "APIGateway",
+          "label": "API",
+          "config": {
+            "name": "my-api",
+            "api_name": "my-api",
+            "api_type": "REST",
+            "stage_name": "prod"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 350,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "Handler",
+          "config": {
+            "runtime": "nodejs20.x",
+            "handler": "index.handler",
+            "memory_size": "256",
+            "timeout": "30",
+            "name": "api-handler",
+            "sg_ids": [
+              "sg-n2"
+            ],
+            "iam_role_id": "role-lambda-n2"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 600,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "DynamoDB",
+          "label": "Data Table",
+          "config": {
+            "name": "data-table",
+            "table_name": "items",
+            "billing_mode": "PAY_PER_REQUEST",
+            "hash_key": "id",
+            "hash_key_type": "S"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "traffic"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [
+      {
+        "id": "sg-n2",
+        "name": "api-handler-sg",
+        "description": "Security group for Handler",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "443",
+            "cidr": "0.0.0.0/0",
+            "description": "HTTPS"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "-1",
+            "port": "0",
+            "cidr": "0.0.0.0/0",
+            "description": "All outbound"
+          }
+        ]
+      }
+    ],
+    "roles": [
+      {
+        "id": "role-lambda-n2",
+        "name": "api-handler-exec-role",
+        "policies": [
+          "AWSLambdaBasicExecutionRole"
+        ]
+      }
+    ]
+  }
+}

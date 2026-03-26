@@ -1,0 +1,93 @@
+{
+  "type": "VPC",
+  "title": "Virtual Private Cloud",
+  "description": "A VPC is the foundational network container in AWS. All other networking resources (subnets, gateways, route tables) live inside a VPC.",
+  "connections": {
+    "parents": [],
+    "trafficSources": [],
+    "trafficTargets": [],
+    "associations": []
+  },
+  "practices": [
+    "Never use the default VPC for production workloads — create a dedicated VPC with intentional CIDR planning.",
+    "Plan your CIDR range for future growth; changing it later is painful.",
+    "Use a /16 CIDR for production environments and /24 for small dev/test environments.",
+    "Enable VPC Flow Logs for network troubleshooting and auditing."
+  ],
+  "configNotes": [
+    "CIDR block is required and cannot be changed after creation.",
+    "Name tag is required for identification in WIMCUI and the AWS console."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 300,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "VPC",
+          "label": "Production VPC",
+          "config": {
+            "cidr": "10.0.0.0/16",
+            "name": "prod-vpc"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 100,
+          "y": 350
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public Subnet",
+          "config": {
+            "cidr": "10.0.1.0/24",
+            "az": "us-east-1a",
+            "name": "prod-public-subnet",
+            "visibility": "Public",
+            "availability_zone": "us-east-1a"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 500,
+          "y": 350
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Private Subnet",
+          "config": {
+            "cidr": "10.0.2.0/24",
+            "az": "us-east-1b",
+            "name": "prod-private-subnet",
+            "visibility": "Private",
+            "availability_zone": "us-east-1b"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "structural"
+      },
+      {
+        "id": "e2",
+        "source": "n1",
+        "target": "n3",
+        "type": "structural"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [],
+    "roles": []
+  }
+}

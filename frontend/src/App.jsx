@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import InfraCanvas from "./components/Canvas/InfraCanvas";
 import ResourcePanel from "./components/Sidebar/ResourcePanel";
+import DocsModal from "./components/Modal/DocsModal";
 
 // Set theme synchronously before first render
 document.documentElement.setAttribute("data-theme", "dark");
@@ -15,6 +16,7 @@ function App() {
   const [canvasControls, setCanvasControls] = useState({
     onExport: null,
     onImport: null,
+    loadCanvasJSON: null,
     onReviewCanvas: null,
     onAssignRole: null,
     onAssignSG: null,
@@ -26,6 +28,7 @@ function App() {
     nodes: [],
     loading: false,
   });
+  const [docsModalType, setDocsModalType] = useState(null); // null = closed, string or "" = open
 
   // Panel resize state — persisted to localStorage
   const [leftWidth,  setLeftWidth]  = useState(() => parseInt(localStorage.getItem("wimcui_left_width")  || "210", 10));
@@ -103,6 +106,7 @@ function App() {
         onRolesChange={setRoles}
         securityGroups={securityGroups}
         onSGChange={setSecurityGroups}
+        onOpenDocs={(type) => setDocsModalType(type ?? "")}
       />
       <InfraCanvas
         reviewPanelWidth={rightWidth}
@@ -118,6 +122,13 @@ function App() {
         securityGroups={securityGroups}
         onSGChange={setSecurityGroups}
       />
+      {docsModalType !== null && (
+        <DocsModal
+          initialType={docsModalType || null}
+          onClose={() => setDocsModalType(null)}
+          onLoadExample={canvasControls.loadCanvasJSON}
+        />
+      )}
     </div>
   );
 }

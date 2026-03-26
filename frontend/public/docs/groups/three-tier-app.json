@@ -1,0 +1,436 @@
+{
+  "type": "group",
+  "title": "Classic 3-Tier App",
+  "description": "The most common production architecture. Public subnets with an ALB handle inbound traffic, private subnets host compute and database tiers, NAT Gateway provides outbound internet for private resources. Each tier has its own security boundary.",
+  "resources": [
+    "VPC",
+    "Subnet",
+    "IGW",
+    "NATGateway",
+    "RouteTable",
+    "LoadBalancer",
+    "EC2",
+    "RDS"
+  ],
+  "practices": [
+    "Database tier (RDS) must be in private subnets — never expose a database to the internet, even with SG restrictions.",
+    "Use separate Security Groups per tier: ALB allows 443 from 0.0.0.0/0, EC2 allows traffic only from ALB's SG, RDS allows only from EC2's SG.",
+    "ALB requires subnets in at least 2 different AZs. Spread all tiers across AZs for high availability.",
+    "NAT Gateway is a cost center (~$32/month + data). Confirm your private tier actually needs outbound internet (updates, API calls) before adding it.",
+    "Use two Route Tables: public RT routes 0.0.0.0/0 → IGW, private RT routes 0.0.0.0/0 → NAT.",
+    "For production, add Multi-AZ RDS and consider an ASG instead of standalone EC2 instances."
+  ],
+  "configNotes": [
+    "VPC needs a /16 CIDR to accommodate multiple subnets across AZs.",
+    "Public subnets for ALB, private subnets for EC2 and RDS.",
+    "NAT Gateway must be in a public subnet (it needs IGW access to route outbound).",
+    "Two Route Tables: public (→ IGW) and private (→ NAT)."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 300,
+          "y": 0
+        },
+        "data": {
+          "resourceType": "VPC",
+          "label": "Prod VPC",
+          "config": {
+            "cidr": "10.0.0.0/16",
+            "name": "prod-vpc"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 100,
+          "y": 130
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public AZ-A",
+          "config": {
+            "cidr": "10.0.1.0/24",
+            "az": "us-east-1a",
+            "name": "pub-a",
+            "visibility": "Public",
+            "availability_zone": "us-east-1a"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 500,
+          "y": 130
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public AZ-B",
+          "config": {
+            "cidr": "10.0.2.0/24",
+            "az": "us-east-1b",
+            "name": "pub-b",
+            "visibility": "Public",
+            "availability_zone": "us-east-1b"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": {
+          "x": 100,
+          "y": 380
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Private AZ-A",
+          "config": {
+            "cidr": "10.0.10.0/24",
+            "az": "us-east-1a",
+            "name": "priv-a",
+            "visibility": "Private",
+            "availability_zone": "us-east-1a"
+          }
+        }
+      },
+      {
+        "id": "n5",
+        "position": {
+          "x": 500,
+          "y": 380
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Private AZ-B",
+          "config": {
+            "cidr": "10.0.11.0/24",
+            "az": "us-east-1b",
+            "name": "priv-b",
+            "visibility": "Private",
+            "availability_zone": "us-east-1b"
+          }
+        }
+      },
+      {
+        "id": "n6",
+        "position": {
+          "x": 700,
+          "y": 0
+        },
+        "data": {
+          "resourceType": "IGW",
+          "label": "Internet GW",
+          "config": {
+            "name": "prod-igw"
+          }
+        }
+      },
+      {
+        "id": "n7",
+        "position": {
+          "x": 700,
+          "y": 130
+        },
+        "data": {
+          "resourceType": "NATGateway",
+          "label": "NAT GW",
+          "config": {
+            "name": "prod-nat",
+            "connectivity_type": "public"
+          }
+        }
+      },
+      {
+        "id": "n8",
+        "position": {
+          "x": 700,
+          "y": 270
+        },
+        "data": {
+          "resourceType": "RouteTable",
+          "label": "Public RT",
+          "config": {
+            "routes": [
+              {
+                "destination": "0.0.0.0/0",
+                "target": "n6"
+              }
+            ],
+            "name": "pub-rt"
+          }
+        }
+      },
+      {
+        "id": "n9",
+        "position": {
+          "x": 700,
+          "y": 380
+        },
+        "data": {
+          "resourceType": "RouteTable",
+          "label": "Private RT",
+          "config": {
+            "routes": [
+              {
+                "destination": "0.0.0.0/0",
+                "target": "n7"
+              }
+            ],
+            "name": "priv-rt"
+          }
+        }
+      },
+      {
+        "id": "n10",
+        "position": {
+          "x": 300,
+          "y": 270
+        },
+        "data": {
+          "resourceType": "LoadBalancer",
+          "label": "Web ALB",
+          "config": {
+            "lb_type": "alb",
+            "listener_port": "443",
+            "listener_protocol": "HTTPS",
+            "name": "web-alb",
+            "load_balancer_type": "application",
+            "internal": "false",
+            "tg_port": "80",
+            "tg_protocol": "HTTP",
+            "sg_ids": [
+              "sg-n10"
+            ]
+          }
+        }
+      },
+      {
+        "id": "n11",
+        "position": {
+          "x": 200,
+          "y": 500
+        },
+        "data": {
+          "resourceType": "EC2",
+          "label": "App Server",
+          "config": {
+            "ami": "ami-0abcdef1234567890",
+            "instance_type": "t3.medium",
+            "name": "app-server",
+            "sg_ids": [
+              "sg-n11"
+            ],
+            "iam_role_id": "role-ec2-n11"
+          }
+        }
+      },
+      {
+        "id": "n12",
+        "position": {
+          "x": 450,
+          "y": 500
+        },
+        "data": {
+          "resourceType": "RDS",
+          "label": "App Database",
+          "config": {
+            "engine": "postgres",
+            "engine_version": "15.4",
+            "instance_class": "db.r6g.large",
+            "name": "app-db",
+            "allocated_storage": "20",
+            "username": "admin",
+            "password": "changeme123!",
+            "storage_encrypted": "true",
+            "sg_ids": [
+              "sg-n12"
+            ]
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "structural"
+      },
+      {
+        "id": "e2",
+        "source": "n1",
+        "target": "n3",
+        "type": "structural"
+      },
+      {
+        "id": "e3",
+        "source": "n1",
+        "target": "n4",
+        "type": "structural"
+      },
+      {
+        "id": "e4",
+        "source": "n1",
+        "target": "n5",
+        "type": "structural"
+      },
+      {
+        "id": "e5",
+        "source": "n1",
+        "target": "n6",
+        "type": "structural"
+      },
+      {
+        "id": "e6",
+        "source": "n3",
+        "target": "n7",
+        "type": "structural"
+      },
+      {
+        "id": "e7",
+        "source": "n2",
+        "target": "n10",
+        "type": "structural"
+      },
+      {
+        "id": "e8",
+        "source": "n4",
+        "target": "n11",
+        "type": "structural"
+      },
+      {
+        "id": "e9",
+        "source": "n5",
+        "target": "n12",
+        "type": "structural"
+      },
+      {
+        "id": "e10",
+        "source": "n8",
+        "target": "n2",
+        "type": "association"
+      },
+      {
+        "id": "e11",
+        "source": "n8",
+        "target": "n3",
+        "type": "association"
+      },
+      {
+        "id": "e12",
+        "source": "n8",
+        "target": "n6",
+        "type": "association"
+      },
+      {
+        "id": "e13",
+        "source": "n9",
+        "target": "n4",
+        "type": "association"
+      },
+      {
+        "id": "e14",
+        "source": "n9",
+        "target": "n5",
+        "type": "association"
+      },
+      {
+        "id": "e15",
+        "source": "n9",
+        "target": "n7",
+        "type": "association"
+      },
+      {
+        "id": "e16",
+        "source": "n10",
+        "target": "n11",
+        "type": "traffic"
+      },
+      {
+        "id": "e17",
+        "source": "n11",
+        "target": "n12",
+        "type": "traffic"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [
+      {
+        "id": "sg-n10",
+        "name": "web-alb-sg",
+        "description": "Security group for Web ALB",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "443",
+            "cidr": "0.0.0.0/0",
+            "description": "HTTPS from internet"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "tcp",
+            "port": "80",
+            "cidr": "sg-n11",
+            "description": "To App Server"
+          }
+        ]
+      },
+      {
+        "id": "sg-n11",
+        "name": "app-server-sg",
+        "description": "Security group for App Server",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "80",
+            "cidr": "sg-n10",
+            "description": "From Web ALB"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "tcp",
+            "port": "5432",
+            "cidr": "sg-n12",
+            "description": "To App Database"
+          }
+        ]
+      },
+      {
+        "id": "sg-n12",
+        "name": "app-db-sg",
+        "description": "Security group for App Database",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "5432",
+            "cidr": "sg-n11",
+            "description": "From App Server"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "-1",
+            "port": "0",
+            "cidr": "0.0.0.0/0",
+            "description": "All outbound"
+          }
+        ]
+      }
+    ],
+    "roles": [
+      {
+        "id": "role-ec2-n11",
+        "name": "app-server-role",
+        "policies": [
+          "AmazonSSMManagedInstanceCore"
+        ]
+      }
+    ]
+  }
+}

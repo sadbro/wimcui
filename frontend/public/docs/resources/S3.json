@@ -1,0 +1,76 @@
+{
+  "type": "S3",
+  "title": "S3 Bucket",
+  "description": "Object storage with virtually unlimited capacity. Stores files, static assets, backups, and data lake content. Accessed via IAM policies, not network traffic edges.",
+  "connections": {
+    "parents": [],
+    "trafficSources": [],
+    "trafficTargets": [],
+    "associations": []
+  },
+  "practices": [
+    "Block public access by default. If you need public content, put CloudFront in front of S3.",
+    "Enable versioning for any bucket storing important data — accidental deletes become recoverable.",
+    "Use lifecycle rules to move infrequently accessed data to S3-IA or Glacier to reduce costs.",
+    "Access S3 via IAM policies on your compute resources, not access keys."
+  ],
+  "configNotes": [
+    "Bucket name must be globally unique across all AWS accounts.",
+    "Versioning is recommended for production buckets.",
+    "Access is controlled through IAM, not network edges in WIMCUI."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 100,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "Processor",
+          "config": {
+            "runtime": "python3.12",
+            "name": "s3-processor",
+            "handler": "index.handler",
+            "memory_size": "256",
+            "timeout": "30",
+            "iam_role_id": "role-lambda-n1"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 350,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "S3",
+          "label": "Data Bucket",
+          "config": {
+            "bucket_name": "my-data-bucket",
+            "versioning": "Enabled",
+            "name": "data-bucket",
+            "encryption": "SSE-S3 (AES-256)",
+            "acl": "private",
+            "block_public_access": "true"
+          }
+        }
+      }
+    ],
+    "edges": [],
+    "version": 1,
+    "securityGroups": [],
+    "roles": [
+      {
+        "id": "role-lambda-n1",
+        "name": "s3-processor-exec-role",
+        "policies": [
+          "AWSLambdaBasicExecutionRole"
+        ]
+      }
+    ]
+  }
+}

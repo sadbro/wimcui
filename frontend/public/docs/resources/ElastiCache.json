@@ -1,0 +1,186 @@
+{
+  "type": "ElastiCache",
+  "title": "ElastiCache",
+  "description": "Managed in-memory caching service. Supports Redis (persistence, data structures, pub/sub) and Memcached (simple key-value caching). Sub-millisecond latency for read-heavy workloads.",
+  "connections": {
+    "parents": [
+      "Subnet"
+    ],
+    "trafficSources": [
+      "EC2",
+      "ECS",
+      "Lambda"
+    ],
+    "trafficTargets": [],
+    "associations": []
+  },
+  "practices": [
+    "Use Redis if you need persistence, data structures, or pub/sub. Use Memcached only for simple ephemeral caching.",
+    "Place in the same AZ as your primary consumers to minimize latency — cross-AZ adds ~1ms.",
+    "Enable encryption in transit for any cache handling sensitive data like session tokens.",
+    "Size your cache based on your working set, not total data. Cache misses are expensive — better to over-provision slightly."
+  ],
+  "configNotes": [
+    "Engine (redis or memcached) is required.",
+    "Node type determines memory and network performance (e.g., cache.t3.micro for dev).",
+    "Number of cache nodes — Redis supports replication, Memcached supports sharding.",
+    "Must be in a subnet with SG allowing inbound from consumers on port 6379 (Redis) or 11211 (Memcached)."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 250,
+          "y": 0
+        },
+        "data": {
+          "resourceType": "VPC",
+          "label": "App VPC",
+          "config": {
+            "cidr": "10.0.0.0/16",
+            "name": "app-vpc"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 250,
+          "y": 120
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "App Subnet",
+          "config": {
+            "cidr": "10.0.1.0/24",
+            "az": "us-east-1a",
+            "name": "app-subnet",
+            "visibility": "Private",
+            "availability_zone": "us-east-1a"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 100,
+          "y": 280
+        },
+        "data": {
+          "resourceType": "EC2",
+          "label": "App Server",
+          "config": {
+            "ami": "ami-0abcdef1234567890",
+            "instance_type": "t3.small",
+            "name": "app",
+            "sg_ids": [
+              "sg-n3"
+            ],
+            "iam_role_id": "role-ec2-n3"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": {
+          "x": 400,
+          "y": 280
+        },
+        "data": {
+          "resourceType": "ElastiCache",
+          "label": "Redis Cache",
+          "config": {
+            "engine": "redis",
+            "node_type": "cache.t3.micro",
+            "name": "app-cache",
+            "num_cache_nodes": "1",
+            "sg_ids": [
+              "sg-n4"
+            ]
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "structural"
+      },
+      {
+        "id": "e2",
+        "source": "n2",
+        "target": "n3",
+        "type": "structural"
+      },
+      {
+        "id": "e3",
+        "source": "n2",
+        "target": "n4",
+        "type": "structural"
+      },
+      {
+        "id": "e4",
+        "source": "n3",
+        "target": "n4",
+        "type": "traffic"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [
+      {
+        "id": "sg-n3",
+        "name": "app-sg",
+        "description": "Security group for App Server",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "443",
+            "cidr": "0.0.0.0/0",
+            "description": "HTTPS"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "tcp",
+            "port": "6379",
+            "cidr": "sg-n4",
+            "description": "To Redis Cache"
+          }
+        ]
+      },
+      {
+        "id": "sg-n4",
+        "name": "app-cache-sg",
+        "description": "Security group for Redis Cache",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "6379",
+            "cidr": "sg-n3",
+            "description": "From App Server"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "-1",
+            "port": "0",
+            "cidr": "0.0.0.0/0",
+            "description": "All outbound"
+          }
+        ]
+      }
+    ],
+    "roles": [
+      {
+        "id": "role-ec2-n3",
+        "name": "app-role",
+        "policies": [
+          "AmazonSSMManagedInstanceCore"
+        ]
+      }
+    ]
+  }
+}

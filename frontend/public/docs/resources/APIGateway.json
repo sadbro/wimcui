@@ -1,0 +1,185 @@
+{
+  "type": "APIGateway",
+  "title": "API Gateway",
+  "description": "Managed API front door. Handles request routing, authentication, throttling, and CORS. Supports REST, HTTP, and WebSocket APIs. The entry point for serverless backends.",
+  "connections": {
+    "parents": [],
+    "trafficSources": [
+      "Public",
+      "Route53"
+    ],
+    "trafficTargets": [
+      "Lambda",
+      "ECS",
+      "EC2"
+    ],
+    "associations": []
+  },
+  "practices": [
+    "Use HTTP API (v2) over REST API unless you need REST-specific features like request validation or API keys — HTTP API is cheaper and faster.",
+    "Always enable throttling. API Gateway can absorb traffic spikes, but your backend might not.",
+    "Use custom domain names with Route53 and ACM certificates for production APIs.",
+    "Enable CloudWatch logging for troubleshooting — request/response logs are invaluable during incidents."
+  ],
+  "configNotes": [
+    "API name is required.",
+    "Protocol type: REST (full featured), HTTP (simpler, cheaper), or WebSocket.",
+    "Stage name (e.g., prod, dev) is required for deployment.",
+    "Throttling defaults to 10,000 requests/second — adjust based on your backend capacity."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 100,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "Route53",
+          "label": "api.example.com",
+          "config": {
+            "name": "api-dns",
+            "hosted_zone_name": "example.com",
+            "zone_type": "public"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 350,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "APIGateway",
+          "label": "REST API",
+          "config": {
+            "name": "rest-api",
+            "api_name": "my-api",
+            "api_type": "REST",
+            "stage_name": "prod"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 600,
+          "y": 50
+        },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "Users Handler",
+          "config": {
+            "runtime": "nodejs20.x",
+            "name": "users-fn",
+            "handler": "index.handler",
+            "memory_size": "256",
+            "timeout": "30",
+            "sg_ids": [
+              "sg-n3"
+            ],
+            "iam_role_id": "role-lambda-n3"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": {
+          "x": 600,
+          "y": 180
+        },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "Orders Handler",
+          "config": {
+            "runtime": "nodejs20.x",
+            "name": "orders-fn",
+            "handler": "index.handler",
+            "memory_size": "256",
+            "timeout": "30",
+            "sg_ids": [
+              "sg-n4"
+            ],
+            "iam_role_id": "role-lambda-n3"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "traffic"
+      },
+      {
+        "id": "e2",
+        "source": "n2",
+        "target": "n3",
+        "type": "traffic"
+      },
+      {
+        "id": "e3",
+        "source": "n2",
+        "target": "n4",
+        "type": "traffic"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [
+      {
+        "id": "sg-n3",
+        "name": "users-fn-sg",
+        "description": "Security group for Users Handler",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "443",
+            "cidr": "0.0.0.0/0",
+            "description": "HTTPS"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "-1",
+            "port": "0",
+            "cidr": "0.0.0.0/0",
+            "description": "All outbound"
+          }
+        ]
+      },
+      {
+        "id": "sg-n4",
+        "name": "orders-fn-sg",
+        "description": "Security group for Orders Handler",
+        "inbound": [
+          {
+            "protocol": "tcp",
+            "port": "443",
+            "cidr": "0.0.0.0/0",
+            "description": "HTTPS"
+          }
+        ],
+        "outbound": [
+          {
+            "protocol": "-1",
+            "port": "0",
+            "cidr": "0.0.0.0/0",
+            "description": "All outbound"
+          }
+        ]
+      }
+    ],
+    "roles": [
+      {
+        "id": "role-lambda-n3",
+        "name": "users-fn-exec-role",
+        "policies": [
+          "AWSLambdaBasicExecutionRole"
+        ]
+      }
+    ]
+  }
+}

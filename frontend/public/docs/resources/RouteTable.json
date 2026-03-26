@@ -1,0 +1,201 @@
+{
+  "type": "RouteTable",
+  "title": "Route Table",
+  "description": "A route table contains rules (routes) that determine where network traffic from subnets or gateways is directed. Each subnet must be associated with exactly one route table.",
+  "connections": {
+    "parents": [
+      "VPC"
+    ],
+    "trafficSources": [],
+    "trafficTargets": [],
+    "associations": [
+      "Subnet",
+      "IGW",
+      "NATGateway"
+    ]
+  },
+  "practices": [
+    "Use explicit route table associations on every subnet to prevent unexpected routing through the main route table.",
+    "The main route table applies to any subnet without an explicit association — always override it with a specific one.",
+    "Maintain separate route tables for public subnets (route to IGW) and private subnets (route to NAT Gateway).",
+    "Keep routes as specific as possible; overly broad routes can expose resources unintentionally."
+  ],
+  "configNotes": [
+    "Each route requires a destination CIDR block and a target (e.g., IGW, NAT Gateway, or local).",
+    "A local route for the VPC CIDR is automatically included and cannot be removed."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 300,
+          "y": 50
+        },
+        "data": {
+          "resourceType": "VPC",
+          "label": "Main VPC",
+          "config": {
+            "cidr": "10.3.0.0/16",
+            "name": "main-vpc"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 100,
+          "y": 300
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public Subnet",
+          "config": {
+            "cidr": "10.3.1.0/24",
+            "az": "us-west-2a",
+            "name": "main-public-subnet",
+            "visibility": "Public",
+            "availability_zone": "us-west-2a"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 500,
+          "y": 300
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Private Subnet",
+          "config": {
+            "cidr": "10.3.2.0/24",
+            "az": "us-west-2b",
+            "name": "main-private-subnet",
+            "visibility": "Private",
+            "availability_zone": "us-west-2b"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": {
+          "x": 100,
+          "y": 550
+        },
+        "data": {
+          "resourceType": "RouteTable",
+          "label": "Public Route Table",
+          "config": {
+            "routes": [
+              {
+                "destination": "10.3.0.0/16",
+                "target": "local"
+              },
+              {
+                "destination": "0.0.0.0/0",
+                "target": "igw-main123"
+              }
+            ],
+            "name": "main-public-rt"
+          }
+        }
+      },
+      {
+        "id": "n5",
+        "position": {
+          "x": 500,
+          "y": 550
+        },
+        "data": {
+          "resourceType": "RouteTable",
+          "label": "Private Route Table",
+          "config": {
+            "routes": [
+              {
+                "destination": "10.3.0.0/16",
+                "target": "local"
+              },
+              {
+                "destination": "0.0.0.0/0",
+                "target": "nat-main456"
+              }
+            ],
+            "name": "main-private-rt"
+          }
+        }
+      },
+      {
+        "id": "n6",
+        "position": {
+          "x": 100,
+          "y": 800
+        },
+        "data": {
+          "resourceType": "IGW",
+          "label": "Internet Gateway",
+          "config": {
+            "name": "main-igw"
+          }
+        }
+      },
+      {
+        "id": "n7",
+        "position": {
+          "x": 500,
+          "y": 800
+        },
+        "data": {
+          "resourceType": "NATGateway",
+          "label": "NAT Gateway",
+          "config": {
+            "name": "main-nat",
+            "elasticIp": "34.220.100.55",
+            "connectivity_type": "public"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "structural"
+      },
+      {
+        "id": "e2",
+        "source": "n1",
+        "target": "n3",
+        "type": "structural"
+      },
+      {
+        "id": "e3",
+        "source": "n2",
+        "target": "n4",
+        "type": "association"
+      },
+      {
+        "id": "e4",
+        "source": "n3",
+        "target": "n5",
+        "type": "association"
+      },
+      {
+        "id": "e5",
+        "source": "n4",
+        "target": "n6",
+        "type": "association"
+      },
+      {
+        "id": "e6",
+        "source": "n5",
+        "target": "n7",
+        "type": "association"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [],
+    "roles": []
+  }
+}

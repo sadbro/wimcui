@@ -1,0 +1,74 @@
+{
+  "type": "ECR",
+  "title": "ECR",
+  "description": "Fully managed container image registry. Stores, manages, and deploys Docker container images. Integrates natively with ECS and Lambda for image pulls.",
+  "connections": {
+    "parents": [],
+    "trafficSources": [],
+    "trafficTargets": [],
+    "associations": []
+  },
+  "practices": [
+    "Use ECR instead of public Docker Hub in production — faster pulls, no rate limits, and image scanning included.",
+    "Enable image scanning on push to catch known vulnerabilities before deployment.",
+    "Set lifecycle policies to clean up old/untagged images — ECR storage costs add up over time.",
+    "Use immutable image tags in production to prevent accidental overwrites of deployed images."
+  ],
+  "configNotes": [
+    "Repository name is required.",
+    "Image scanning can be enabled on push (recommended).",
+    "Lifecycle policies control how many images are retained."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 100,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "ECR",
+          "label": "App Images",
+          "config": {
+            "name": "app-images",
+            "repository_name": "my-app/api",
+            "image_tag_mutability": "MUTABLE"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 350,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "ECS",
+          "label": "App Service",
+          "config": {
+            "name": "app-svc",
+            "launch_type": "FARGATE",
+            "cpu": "256",
+            "memory": "512",
+            "image": "nginx:latest",
+            "desired_count": "2",
+            "iam_role_id": "role-ecs-n2"
+          }
+        }
+      }
+    ],
+    "edges": [],
+    "version": 1,
+    "securityGroups": [],
+    "roles": [
+      {
+        "id": "role-ecs-n2",
+        "name": "app-svc-task-role",
+        "policies": [
+          "AmazonECSTaskExecutionRolePolicy"
+        ]
+      }
+    ]
+  }
+}

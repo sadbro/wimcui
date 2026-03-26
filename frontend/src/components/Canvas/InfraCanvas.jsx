@@ -652,98 +652,102 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
     return warnings;
   };
 
+  // Core import logic — shared by file import and programmatic load (e.g. docs examples)
+  const loadCanvasJSON = (raw) => {
+    try {
+      if (!raw.nodes || !raw.edges) throw new Error("Invalid file structure.");
+
+      // Migrate to latest schema version
+      const { state, warnings: migrationWarnings } = migrateCanvas(raw);
+      migrationWarnings.forEach((w) => showToast(w, true));
+
+      // Semantic validation
+      const warnings = validateImport(state.nodes, state.edges);
+      if (warnings.length > 0) {
+        showToast(`Canvas imported with ${warnings.length} warning${warnings.length > 1 ? "s" : ""}: ${warnings[0]}${warnings.length > 1 ? ` (+${warnings.length - 1} more)` : ""}`, true);
+      }
+
+      if (state.region && onRegionChange) onRegionChange(state.region);
+      if (state.roles && onRolesChange) onRolesChange(state.roles);
+      if (state.securityGroups && onSGChange) onSGChange(state.securityGroups);
+
+      // Deprecation warning for Public nodes
+      const publicNodes = state.nodes.filter((n) => n.data?.resourceType === "Public");
+      if (publicNodes.length > 0) {
+        showToast(
+          `This canvas uses the deprecated Public / Internet node — internet exposure is now modeled via public subnets and Route Table → IGW configuration. The node still works but should be removed.`,
+          true
+        );
+      }
+
+      snapshotRef.current();
+      const validRoleIds = new Set((state.roles || []).map((r) => r.id));
+      const validSGIds   = new Set((state.securityGroups || []).map((s) => s.id));
+      const remappedNodes = state.nodes.map((n) => {
+        const roleId = n.data?.config?.iam_role_id;
+        const hasDanglingRole = roleId && !validRoleIds.has(roleId);
+        const sgIds = n.data?.config?.sg_ids || [];
+        const cleanSGIds = sgIds.filter((id) => validSGIds.has(id));
+        const hasDanglingSG = cleanSGIds.length !== sgIds.length;
+        const cleanConfig = {
+          ...(hasDanglingRole ? { ...n.data.config, iam_role_id: "" } : n.data.config),
+          ...(hasDanglingSG   ? { sg_ids: cleanSGIds } : {}),
+        };
+        return {
+          ...n,
+          type: n.data?.resourceType === "Public" ? "publicNode" : "resourceNode",
+          data: {
+            ...n.data,
+            config: cleanConfig,
+            onDelete: onDeleteNode,
+          },
+        };
+      });
+
+      const hadDanglingRole = remappedNodes.some((n, i) => {
+        const roleId = state.nodes[i]?.data?.config?.iam_role_id;
+        return roleId && !validRoleIds.has(roleId);
+      });
+      const hadDanglingSG = remappedNodes.some((n, i) => {
+        const sgIds = state.nodes[i]?.data?.config?.sg_ids || [];
+        return sgIds.some((id) => !validSGIds.has(id));
+      });
+      if (hadDanglingRole) showToast("Some nodes had references to deleted roles — cleared on import.", true);
+      if (hadDanglingSG)   showToast("Some nodes had references to deleted security groups — cleared on import.", true);
+
+      setNodes(remappedNodes);
+      setEdges(state.edges);
+
+      // SG auto-create prompt — fire if sgCapable nodes have traffic edges but no sg_ids
+      const sgCapableTypes = Object.entries(RESOURCE_REGISTRY)
+        .filter(([, def]) => def.sgCapable)
+        .map(([type]) => type);
+      const importedEdges = state.edges;
+      const nodesNeedingSG = remappedNodes.filter((n) => {
+        if (!sgCapableTypes.includes(n.data?.resourceType)) return false;
+        const hasSGs = (n.data?.config?.sg_ids || []).length > 0;
+        if (hasSGs) return false;
+        const hasTraffic = importedEdges.some(
+          (e) => e.type === "traffic" && (e.source === n.id || e.target === n.id)
+        );
+        return hasTraffic;
+      });
+      if (nodesNeedingSG.length > 0) {
+        setPendingSGPrompt(nodesNeedingSG);
+      } else if (warnings.length === 0 && publicNodes.length === 0) {
+        showToast("Canvas imported.");
+      }
+    } catch (err) {
+      showToast(`Import failed: ${err.message}`, true);
+    }
+  };
+
   const onImport = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (evt) => {
-      try {
-        const raw = JSON.parse(evt.target.result);
-        if (!raw.nodes || !raw.edges) throw new Error("Invalid file structure.");
-
-        // Migrate to latest schema version
-        const { state, warnings: migrationWarnings } = migrateCanvas(raw);
-        migrationWarnings.forEach((w) => showToast(w, true));
-
-        // Semantic validation
-        const warnings = validateImport(state.nodes, state.edges);
-        if (warnings.length > 0) {
-          showToast(`Canvas imported with ${warnings.length} warning${warnings.length > 1 ? "s" : ""}: ${warnings[0]}${warnings.length > 1 ? ` (+${warnings.length - 1} more)` : ""}`, true);
-        }
-
-        if (state.region && onRegionChange) onRegionChange(state.region);
-        if (state.roles && onRolesChange) onRolesChange(state.roles);
-        if (state.securityGroups && onSGChange) onSGChange(state.securityGroups);
-
-        // Deprecation warning for Public nodes
-        const publicNodes = state.nodes.filter((n) => n.data?.resourceType === "Public");
-        if (publicNodes.length > 0) {
-          showToast(
-            `This canvas uses the deprecated Public / Internet node — internet exposure is now modeled via public subnets and Route Table → IGW configuration. The node still works but should be removed.`,
-            true
-          );
-        }
-
-        snapshotRef.current();
-        const validRoleIds = new Set((state.roles || []).map((r) => r.id));
-        const validSGIds   = new Set((state.securityGroups || []).map((s) => s.id));
-        const remappedNodes = state.nodes.map((n) => {
-          const roleId = n.data?.config?.iam_role_id;
-          const hasDanglingRole = roleId && !validRoleIds.has(roleId);
-          const sgIds = n.data?.config?.sg_ids || [];
-          const cleanSGIds = sgIds.filter((id) => validSGIds.has(id));
-          const hasDanglingSG = cleanSGIds.length !== sgIds.length;
-          const cleanConfig = {
-            ...(hasDanglingRole ? { ...n.data.config, iam_role_id: "" } : n.data.config),
-            ...(hasDanglingSG   ? { sg_ids: cleanSGIds } : {}),
-          };
-          return {
-            ...n,
-            type: n.data?.resourceType === "Public" ? "publicNode" : "resourceNode",
-            data: {
-              ...n.data,
-              config: cleanConfig,
-              onDelete: onDeleteNode,
-            },
-          };
-        });
-
-        const hadDanglingRole = remappedNodes.some((n, i) => {
-          const roleId = state.nodes[i]?.data?.config?.iam_role_id;
-          return roleId && !validRoleIds.has(roleId);
-        });
-        const hadDanglingSG = remappedNodes.some((n, i) => {
-          const sgIds = state.nodes[i]?.data?.config?.sg_ids || [];
-          return sgIds.some((id) => !validSGIds.has(id));
-        });
-        if (hadDanglingRole) showToast("Some nodes had references to deleted roles — cleared on import.", true);
-        if (hadDanglingSG)   showToast("Some nodes had references to deleted security groups — cleared on import.", true);
-
-        setNodes(remappedNodes);
-        setEdges(state.edges);
-
-        // SG auto-create prompt — fire if sgCapable nodes have traffic edges but no sg_ids
-        const sgCapableTypes = Object.entries(RESOURCE_REGISTRY)
-          .filter(([, def]) => def.sgCapable)
-          .map(([type]) => type);
-        const importedEdges = state.edges;
-        const nodesNeedingSG = remappedNodes.filter((n) => {
-          if (!sgCapableTypes.includes(n.data?.resourceType)) return false;
-          const hasSGs = (n.data?.config?.sg_ids || []).length > 0;
-          if (hasSGs) return false;
-          const hasTraffic = importedEdges.some(
-            (e) => e.type === "traffic" && (e.source === n.id || e.target === n.id)
-          );
-          return hasTraffic;
-        });
-        if (nodesNeedingSG.length > 0) {
-          setPendingSGPrompt(nodesNeedingSG);
-        } else if (warnings.length === 0 && publicNodes.length === 0) {
-          showToast("Canvas imported.");
-        }
-      } catch (err) {
-        showToast(`Import failed: ${err.message}`, true);
-      }
+      loadCanvasJSON(JSON.parse(evt.target.result));
     };
     reader.readAsText(file);
     e.target.value = "";
@@ -760,12 +764,14 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
   // Keep stable refs to latest handlers so ResourcePanel never gets stale closures
   const onExportRef = useRef(onExport);
   const onImportRef = useRef(onImport);
+  const loadCanvasJSONRef = useRef(loadCanvasJSON);
   const onReviewCanvasRef = useRef(onReviewCanvas);
   const undoRef = useRef(undo);
   const redoRef = useRef(redo);
   const snapshotRef = useRef(snapshot);
   useEffect(() => { onExportRef.current = onExport; }, [onExport]);
   useEffect(() => { onImportRef.current = onImport; }, [onImport]);
+  useEffect(() => { loadCanvasJSONRef.current = loadCanvasJSON; }, [loadCanvasJSON]);
   useEffect(() => { onReviewCanvasRef.current = onReviewCanvas; }, [onReviewCanvas]);
   useEffect(() => { undoRef.current = undo; }, [undo]);
   useEffect(() => { redoRef.current = redo; }, [redo]);
@@ -777,6 +783,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
       onRegisterControls({
         onExport:        (...args) => onExportRef.current(...args),
         onImport:        (...args) => onImportRef.current(...args),
+        loadCanvasJSON:  (...args) => loadCanvasJSONRef.current(...args),
         onReviewCanvas:  (...args) => onReviewCanvasRef.current(...args),
         undo:            (...args) => undoRef.current(...args),
         redo:            (...args) => redoRef.current(...args),

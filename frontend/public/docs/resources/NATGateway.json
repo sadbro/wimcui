@@ -1,0 +1,209 @@
+{
+  "type": "NATGateway",
+  "title": "NAT Gateway",
+  "description": "A NAT Gateway allows instances in private subnets to reach the internet for outbound traffic (e.g., software updates) while preventing unsolicited inbound connections.",
+  "connections": {
+    "parents": [
+      "Subnet"
+    ],
+    "trafficSources": [],
+    "trafficTargets": [],
+    "associations": []
+  },
+  "practices": [
+    "Always place a NAT Gateway in a public subnet — it needs a route to the internet via an IGW to function.",
+    "Deploy one NAT Gateway per Availability Zone for high availability; a single NAT is a single point of failure.",
+    "NAT Gateways incur hourly and data-processing charges — verify that private subnets actually need outbound internet before deploying.",
+    "Associate an Elastic IP with the NAT Gateway for a stable outbound IP address."
+  ],
+  "configNotes": [
+    "Must be placed in a public subnet (one with a route to an IGW).",
+    "An Elastic IP allocation is required for public NAT Gateways."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 300,
+          "y": 50
+        },
+        "data": {
+          "resourceType": "VPC",
+          "label": "App VPC",
+          "config": {
+            "cidr": "10.2.0.0/16",
+            "name": "app-vpc"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 100,
+          "y": 300
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public Subnet",
+          "config": {
+            "cidr": "10.2.1.0/24",
+            "az": "us-east-1a",
+            "name": "app-public-subnet",
+            "visibility": "Public",
+            "availability_zone": "us-east-1a"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 500,
+          "y": 300
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Private Subnet",
+          "config": {
+            "cidr": "10.2.2.0/24",
+            "az": "us-east-1a",
+            "name": "app-private-subnet",
+            "visibility": "Private",
+            "availability_zone": "us-east-1a"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": {
+          "x": 100,
+          "y": 550
+        },
+        "data": {
+          "resourceType": "NATGateway",
+          "label": "NAT Gateway",
+          "config": {
+            "name": "app-nat",
+            "elasticIp": "52.14.200.10",
+            "connectivity_type": "public"
+          }
+        }
+      },
+      {
+        "id": "n5",
+        "position": {
+          "x": 500,
+          "y": 550
+        },
+        "data": {
+          "resourceType": "RouteTable",
+          "label": "Private RT",
+          "config": {
+            "routes": [
+              {
+                "destination": "10.2.0.0/16",
+                "target": "local"
+              },
+              {
+                "destination": "0.0.0.0/0",
+                "target": "nat-app456"
+              }
+            ],
+            "name": "app-private-rt"
+          }
+        }
+      },
+      {
+        "id": "n6",
+        "position": {
+          "x": 100,
+          "y": 800
+        },
+        "data": {
+          "resourceType": "IGW",
+          "label": "Internet Gateway",
+          "config": {
+            "name": "app-igw"
+          }
+        }
+      },
+      {
+        "id": "n7",
+        "position": {
+          "x": 100,
+          "y": 100
+        },
+        "data": {
+          "resourceType": "RouteTable",
+          "label": "Public RT",
+          "config": {
+            "routes": [
+              {
+                "destination": "10.2.0.0/16",
+                "target": "local"
+              },
+              {
+                "destination": "0.0.0.0/0",
+                "target": "igw-app789"
+              }
+            ],
+            "name": "app-public-rt"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "structural"
+      },
+      {
+        "id": "e2",
+        "source": "n1",
+        "target": "n3",
+        "type": "structural"
+      },
+      {
+        "id": "e3",
+        "source": "n2",
+        "target": "n4",
+        "type": "structural"
+      },
+      {
+        "id": "e4",
+        "source": "n3",
+        "target": "n5",
+        "type": "association"
+      },
+      {
+        "id": "e5",
+        "source": "n5",
+        "target": "n4",
+        "type": "association"
+      },
+      {
+        "id": "e6",
+        "source": "n1",
+        "target": "n6",
+        "type": "structural"
+      },
+      {
+        "id": "e7",
+        "source": "n2",
+        "target": "n7",
+        "type": "association"
+      },
+      {
+        "id": "e8",
+        "source": "n7",
+        "target": "n6",
+        "type": "association"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [],
+    "roles": []
+  }
+}

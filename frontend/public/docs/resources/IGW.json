@@ -1,0 +1,127 @@
+{
+  "type": "IGW",
+  "title": "Internet Gateway",
+  "description": "An Internet Gateway enables communication between resources in a VPC and the internet. It is horizontally scaled, redundant, and highly available by default.",
+  "connections": {
+    "parents": [
+      "VPC"
+    ],
+    "trafficSources": [],
+    "trafficTargets": [],
+    "associations": []
+  },
+  "practices": [
+    "Only one Internet Gateway can be attached to a VPC at a time.",
+    "An IGW alone does nothing — a route table entry pointing 0.0.0.0/0 to the IGW is required for internet access.",
+    "The IGW only enables connectivity; Security Groups and NACLs still control what traffic is allowed.",
+    "Detaching an IGW immediately cuts internet access for all public subnets in the VPC."
+  ],
+  "configNotes": [
+    "Must be attached to exactly one VPC.",
+    "No additional configuration is needed beyond the VPC attachment."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 300,
+          "y": 50
+        },
+        "data": {
+          "resourceType": "VPC",
+          "label": "Web VPC",
+          "config": {
+            "cidr": "10.1.0.0/16",
+            "name": "web-vpc"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": {
+          "x": 300,
+          "y": 300
+        },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public Subnet",
+          "config": {
+            "cidr": "10.1.1.0/24",
+            "az": "us-west-2a",
+            "name": "web-public-subnet",
+            "visibility": "Public",
+            "availability_zone": "us-west-2a"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": {
+          "x": 600,
+          "y": 300
+        },
+        "data": {
+          "resourceType": "IGW",
+          "label": "Internet Gateway",
+          "config": {
+            "name": "web-igw"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": {
+          "x": 300,
+          "y": 550
+        },
+        "data": {
+          "resourceType": "RouteTable",
+          "label": "Public Route Table",
+          "config": {
+            "routes": [
+              {
+                "destination": "10.1.0.0/16",
+                "target": "local"
+              },
+              {
+                "destination": "0.0.0.0/0",
+                "target": "igw-web123"
+              }
+            ],
+            "name": "web-public-rt"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "structural"
+      },
+      {
+        "id": "e2",
+        "source": "n1",
+        "target": "n3",
+        "type": "structural"
+      },
+      {
+        "id": "e3",
+        "source": "n2",
+        "target": "n4",
+        "type": "association"
+      },
+      {
+        "id": "e4",
+        "source": "n4",
+        "target": "n3",
+        "type": "association"
+      }
+    ],
+    "version": 1,
+    "securityGroups": [],
+    "roles": []
+  }
+}

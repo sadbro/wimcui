@@ -13,18 +13,18 @@
     "RDS"
   ],
   "practices": [
-    "Database tier (RDS) must be in private subnets — never expose a database to the internet, even with SG restrictions.",
+    "Database tier (RDS) must be in private subnets \u2014 never expose a database to the internet, even with SG restrictions.",
     "Use separate Security Groups per tier: ALB allows 443 from 0.0.0.0/0, EC2 allows traffic only from ALB's SG, RDS allows only from EC2's SG.",
     "ALB requires subnets in at least 2 different AZs. Spread all tiers across AZs for high availability.",
     "NAT Gateway is a cost center (~$32/month + data). Confirm your private tier actually needs outbound internet (updates, API calls) before adding it.",
-    "Use two Route Tables: public RT routes 0.0.0.0/0 → IGW, private RT routes 0.0.0.0/0 → NAT.",
+    "Use two Route Tables: public RT routes 0.0.0.0/0 \u2192 IGW, private RT routes 0.0.0.0/0 \u2192 NAT.",
     "For production, add Multi-AZ RDS and consider an ASG instead of standalone EC2 instances."
   ],
   "configNotes": [
     "VPC needs a /16 CIDR to accommodate multiple subnets across AZs.",
     "Public subnets for ALB, private subnets for EC2 and RDS.",
     "NAT Gateway must be in a public subnet (it needs IGW access to route outbound).",
-    "Two Route Tables: public (→ IGW) and private (→ NAT)."
+    "Two Route Tables: public (\u2192 IGW) and private (\u2192 NAT)."
   ],
   "example": {
     "nodes": [
@@ -57,7 +57,8 @@
             "az": "us-east-1a",
             "name": "pub-a",
             "visibility": "Public",
-            "availability_zone": "us-east-1a"
+            "availability_zone": "us-east-1a",
+            "vpcId": "n1"
           }
         }
       },
@@ -75,7 +76,8 @@
             "az": "us-east-1b",
             "name": "pub-b",
             "visibility": "Public",
-            "availability_zone": "us-east-1b"
+            "availability_zone": "us-east-1b",
+            "vpcId": "n1"
           }
         }
       },
@@ -93,7 +95,8 @@
             "az": "us-east-1a",
             "name": "priv-a",
             "visibility": "Private",
-            "availability_zone": "us-east-1a"
+            "availability_zone": "us-east-1a",
+            "vpcId": "n1"
           }
         }
       },
@@ -111,7 +114,8 @@
             "az": "us-east-1b",
             "name": "priv-b",
             "visibility": "Private",
-            "availability_zone": "us-east-1b"
+            "availability_zone": "us-east-1b",
+            "vpcId": "n1"
           }
         }
       },
@@ -204,6 +208,10 @@
             "tg_protocol": "HTTP",
             "sg_ids": [
               "sg-n10"
+            ],
+            "subnets": [
+              "n2",
+              "n3"
             ]
           }
         }

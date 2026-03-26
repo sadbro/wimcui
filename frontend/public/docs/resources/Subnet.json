@@ -16,7 +16,7 @@
     "Use subnets across multiple Availability Zones for high availability.",
     "A subnet is public only if its associated route table has a route to an Internet Gateway.",
     "Private subnets should route outbound traffic through a NAT Gateway, not directly to an IGW.",
-    "Don't place all resources in a single subnet — separate by tier (web, app, data) for security."
+    "Don't place all resources in a single subnet \u2014 separate by tier (web, app, data) for security."
   ],
   "configNotes": [
     "CIDR block is required and must fall within the parent VPC's CIDR range.",
@@ -53,7 +53,8 @@
             "az": "us-east-1a",
             "name": "public-subnet-1a",
             "visibility": "Public",
-            "availability_zone": "us-east-1a"
+            "availability_zone": "us-east-1a",
+            "vpcId": "n1"
           }
         }
       },
@@ -71,7 +72,8 @@
             "az": "us-east-1b",
             "name": "private-subnet-1b",
             "visibility": "Private",
-            "availability_zone": "us-east-1b"
+            "availability_zone": "us-east-1b",
+            "vpcId": "n1"
           }
         }
       },
@@ -87,12 +89,8 @@
           "config": {
             "routes": [
               {
-                "destination": "10.0.0.0/16",
-                "target": "local"
-              },
-              {
                 "destination": "0.0.0.0/0",
-                "target": "igw-abc123"
+                "target": "n6"
               }
             ],
             "name": "public-rt"
@@ -111,12 +109,8 @@
           "config": {
             "routes": [
               {
-                "destination": "10.0.0.0/16",
-                "target": "local"
-              },
-              {
                 "destination": "0.0.0.0/0",
-                "target": "nat-def456"
+                "target": "n7"
               }
             ],
             "name": "private-rt"

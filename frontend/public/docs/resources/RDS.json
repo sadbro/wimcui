@@ -17,7 +17,7 @@
     "associations": []
   },
   "practices": [
-    "Always place RDS in a private subnet — never expose a database directly to the internet.",
+    "Always place RDS in a private subnet \u2014 never expose a database directly to the internet.",
     "Enable Multi-AZ for production workloads. Single-AZ means your DB goes down during maintenance windows.",
     "Use SecretsManager for credentials instead of hardcoding passwords in application config.",
     "Enable encryption at rest and enforce SSL connections for data in transit."
@@ -25,7 +25,7 @@
   "configNotes": [
     "Engine and version are required (e.g., postgres 15.4).",
     "Instance class determines compute power (e.g., db.t3.micro for dev, db.r6g.large for prod).",
-    "Allocated storage in GB — enable autoscaling for production.",
+    "Allocated storage in GB \u2014 enable autoscaling for production.",
     "Master username and password are required for initial setup."
   ],
   "example": {
@@ -59,7 +59,8 @@
             "az": "us-east-1a",
             "name": "app-subnet",
             "visibility": "Private",
-            "availability_zone": "us-east-1a"
+            "availability_zone": "us-east-1a",
+            "vpcId": "n1"
           }
         }
       },
@@ -77,7 +78,8 @@
             "az": "us-east-1b",
             "name": "db-subnet",
             "visibility": "Private",
-            "availability_zone": "us-east-1b"
+            "availability_zone": "us-east-1b",
+            "vpcId": "n1"
           }
         }
       },

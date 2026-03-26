@@ -27,8 +27,8 @@
       {
         "id": "n1",
         "position": {
-          "x": 100,
-          "y": 150
+          "x": 300,
+          "y": 60
         },
         "data": {
           "resourceType": "APIGateway",
@@ -44,8 +44,8 @@
       {
         "id": "n2",
         "position": {
-          "x": 350,
-          "y": 80
+          "x": 150,
+          "y": 260
         },
         "data": {
           "resourceType": "Lambda",
@@ -66,8 +66,8 @@
       {
         "id": "n3",
         "position": {
-          "x": 350,
-          "y": 220
+          "x": 450,
+          "y": 260
         },
         "data": {
           "resourceType": "Lambda",
@@ -88,8 +88,8 @@
       {
         "id": "n4",
         "position": {
-          "x": 600,
-          "y": 80
+          "x": 150,
+          "y": 460
         },
         "data": {
           "resourceType": "DynamoDB",
@@ -106,8 +106,8 @@
       {
         "id": "n5",
         "position": {
-          "x": 600,
-          "y": 220
+          "x": 450,
+          "y": 460
         },
         "data": {
           "resourceType": "SQS",

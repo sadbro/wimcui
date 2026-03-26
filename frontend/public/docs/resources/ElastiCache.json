@@ -16,14 +16,14 @@
   },
   "practices": [
     "Use Redis if you need persistence, data structures, or pub/sub. Use Memcached only for simple ephemeral caching.",
-    "Place in the same AZ as your primary consumers to minimize latency — cross-AZ adds ~1ms.",
+    "Place in the same AZ as your primary consumers to minimize latency \u2014 cross-AZ adds ~1ms.",
     "Enable encryption in transit for any cache handling sensitive data like session tokens.",
-    "Size your cache based on your working set, not total data. Cache misses are expensive — better to over-provision slightly."
+    "Size your cache based on your working set, not total data. Cache misses are expensive \u2014 better to over-provision slightly."
   ],
   "configNotes": [
     "Engine (redis or memcached) is required.",
     "Node type determines memory and network performance (e.g., cache.t3.micro for dev).",
-    "Number of cache nodes — Redis supports replication, Memcached supports sharding.",
+    "Number of cache nodes \u2014 Redis supports replication, Memcached supports sharding.",
     "Must be in a subnet with SG allowing inbound from consumers on port 6379 (Redis) or 11211 (Memcached)."
   ],
   "example": {
@@ -57,7 +57,8 @@
             "az": "us-east-1a",
             "name": "app-subnet",
             "visibility": "Private",
-            "availability_zone": "us-east-1a"
+            "availability_zone": "us-east-1a",
+            "vpcId": "n1"
           }
         }
       },
@@ -97,6 +98,9 @@
             "num_cache_nodes": "1",
             "sg_ids": [
               "sg-n4"
+            ],
+            "subnets": [
+              "n2"
             ]
           }
         }

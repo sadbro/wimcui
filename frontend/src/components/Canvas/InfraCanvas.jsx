@@ -564,6 +564,47 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
       });
     }
 
+    // Reconcile association edges for dependent-select fields with assocEdgeDir
+    const assocFields = (resourceFields[type] || []).filter(
+      (f) => f.type === "dependent-select" && f.assocEdgeDir
+    );
+    if (assocFields.length > 0) {
+      setEdges((eds) => {
+        let updated = eds;
+        assocFields.forEach((f) => {
+          const oldRefId = editingNode.data.config?.[f.key];
+          const newRefId = config[f.key];
+          if (oldRefId === newRefId) return;
+
+          // Remove old association edge involving this node and the old reference
+          if (f.assocEdgeDir === "to-ref") {
+            updated = updated.filter(
+              (e) => !(e.type === "association" && e.source === editingNode.id && e.target === oldRefId)
+            );
+          } else {
+            updated = updated.filter(
+              (e) => !(e.type === "association" && e.source === oldRefId && e.target === editingNode.id)
+            );
+          }
+
+          // Add new association edge
+          if (newRefId) {
+            const [src, tgt] = f.assocEdgeDir === "to-ref"
+              ? [editingNode.id, newRefId]
+              : [newRefId, editingNode.id];
+            updated = updated.concat({
+              id: `e_assoc_${src}_${tgt}`,
+              source: src,
+              target: tgt,
+              type: "association",
+              data: { label: "assoc" },
+            });
+          }
+        });
+        return updated;
+      });
+    }
+
     onSelectionChange(updatedNode);
     setEditingNode(null);
     showToast("Node updated.");

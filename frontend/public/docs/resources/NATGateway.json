@@ -11,9 +11,9 @@
     "associations": []
   },
   "practices": [
-    "Always place a NAT Gateway in a public subnet — it needs a route to the internet via an IGW to function.",
+    "Always place a NAT Gateway in a public subnet \u2014 it needs a route to the internet via an IGW to function.",
     "Deploy one NAT Gateway per Availability Zone for high availability; a single NAT is a single point of failure.",
-    "NAT Gateways incur hourly and data-processing charges — verify that private subnets actually need outbound internet before deploying.",
+    "NAT Gateways incur hourly and data-processing charges \u2014 verify that private subnets actually need outbound internet before deploying.",
     "Associate an Elastic IP with the NAT Gateway for a stable outbound IP address."
   ],
   "configNotes": [
@@ -51,7 +51,8 @@
             "az": "us-east-1a",
             "name": "app-public-subnet",
             "visibility": "Public",
-            "availability_zone": "us-east-1a"
+            "availability_zone": "us-east-1a",
+            "vpcId": "n1"
           }
         }
       },
@@ -69,7 +70,8 @@
             "az": "us-east-1a",
             "name": "app-private-subnet",
             "visibility": "Private",
-            "availability_zone": "us-east-1a"
+            "availability_zone": "us-east-1a",
+            "vpcId": "n1"
           }
         }
       },
@@ -101,12 +103,8 @@
           "config": {
             "routes": [
               {
-                "destination": "10.2.0.0/16",
-                "target": "local"
-              },
-              {
                 "destination": "0.0.0.0/0",
-                "target": "nat-app456"
+                "target": "n4"
               }
             ],
             "name": "app-private-rt"
@@ -139,12 +137,8 @@
           "config": {
             "routes": [
               {
-                "destination": "10.2.0.0/16",
-                "target": "local"
-              },
-              {
                 "destination": "0.0.0.0/0",
-                "target": "igw-app789"
+                "target": "n6"
               }
             ],
             "name": "app-public-rt"

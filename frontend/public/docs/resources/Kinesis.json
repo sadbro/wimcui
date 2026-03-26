@@ -31,8 +31,8 @@
       {
         "id": "n1",
         "position": {
-          "x": 100,
-          "y": 100
+          "x": 300,
+          "y": 80
         },
         "data": {
           "resourceType": "EC2",
@@ -51,8 +51,8 @@
       {
         "id": "n2",
         "position": {
-          "x": 350,
-          "y": 100
+          "x": 300,
+          "y": 280
         },
         "data": {
           "resourceType": "Kinesis",
@@ -67,8 +67,8 @@
       {
         "id": "n3",
         "position": {
-          "x": 600,
-          "y": 100
+          "x": 300,
+          "y": 480
         },
         "data": {
           "resourceType": "Lambda",

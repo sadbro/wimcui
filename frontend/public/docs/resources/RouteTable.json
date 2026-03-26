@@ -16,7 +16,7 @@
   },
   "practices": [
     "Use explicit route table associations on every subnet to prevent unexpected routing through the main route table.",
-    "The main route table applies to any subnet without an explicit association — always override it with a specific one.",
+    "The main route table applies to any subnet without an explicit association \u2014 always override it with a specific one.",
     "Maintain separate route tables for public subnets (route to IGW) and private subnets (route to NAT Gateway).",
     "Keep routes as specific as possible; overly broad routes can expose resources unintentionally."
   ],
@@ -55,7 +55,8 @@
             "az": "us-west-2a",
             "name": "main-public-subnet",
             "visibility": "Public",
-            "availability_zone": "us-west-2a"
+            "availability_zone": "us-west-2a",
+            "vpcId": "n1"
           }
         }
       },
@@ -73,7 +74,8 @@
             "az": "us-west-2b",
             "name": "main-private-subnet",
             "visibility": "Private",
-            "availability_zone": "us-west-2b"
+            "availability_zone": "us-west-2b",
+            "vpcId": "n1"
           }
         }
       },
@@ -89,12 +91,8 @@
           "config": {
             "routes": [
               {
-                "destination": "10.3.0.0/16",
-                "target": "local"
-              },
-              {
                 "destination": "0.0.0.0/0",
-                "target": "igw-main123"
+                "target": "n6"
               }
             ],
             "name": "main-public-rt"
@@ -113,12 +111,8 @@
           "config": {
             "routes": [
               {
-                "destination": "10.3.0.0/16",
-                "target": "local"
-              },
-              {
                 "destination": "0.0.0.0/0",
-                "target": "nat-main456"
+                "target": "n7"
               }
             ],
             "name": "main-private-rt"

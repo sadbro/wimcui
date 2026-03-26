@@ -12,7 +12,7 @@
   },
   "practices": [
     "Only one Internet Gateway can be attached to a VPC at a time.",
-    "An IGW alone does nothing — a route table entry pointing 0.0.0.0/0 to the IGW is required for internet access.",
+    "An IGW alone does nothing \u2014 a route table entry pointing 0.0.0.0/0 to the IGW is required for internet access.",
     "The IGW only enables connectivity; Security Groups and NACLs still control what traffic is allowed.",
     "Detaching an IGW immediately cuts internet access for all public subnets in the VPC."
   ],
@@ -51,7 +51,8 @@
             "az": "us-west-2a",
             "name": "web-public-subnet",
             "visibility": "Public",
-            "availability_zone": "us-west-2a"
+            "availability_zone": "us-west-2a",
+            "vpcId": "n1"
           }
         }
       },
@@ -81,12 +82,8 @@
           "config": {
             "routes": [
               {
-                "destination": "10.1.0.0/16",
-                "target": "local"
-              },
-              {
                 "destination": "0.0.0.0/0",
-                "target": "igw-web123"
+                "target": "n3"
               }
             ],
             "name": "web-public-rt"

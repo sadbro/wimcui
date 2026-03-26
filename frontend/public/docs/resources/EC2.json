@@ -27,15 +27,15 @@
     "associations": []
   },
   "practices": [
-    "Always attach a Security Group — EC2 instances without SGs have no inbound access, but explicit SGs make intent clear.",
+    "Always attach a Security Group \u2014 EC2 instances without SGs have no inbound access, but explicit SGs make intent clear.",
     "Use IAM instance profiles instead of hardcoded credentials; never put AWS keys on an instance.",
-    "Right-size the instance type — start small and scale up based on actual utilization metrics.",
+    "Right-size the instance type \u2014 start small and scale up based on actual utilization metrics.",
     "Place production instances in a private subnet behind a Load Balancer; only bastion hosts belong in public subnets."
   ],
   "configNotes": [
     "AMI ID is required and determines the OS and pre-installed software.",
     "Instance type is required and determines CPU, memory, and network performance.",
-    "Subnet placement determines the Availability Zone — you cannot move an instance to another AZ after launch."
+    "Subnet placement determines the Availability Zone \u2014 you cannot move an instance to another AZ after launch."
   ],
   "example": {
     "nodes": [
@@ -68,7 +68,8 @@
             "az": "us-east-1a",
             "name": "prod-public-subnet",
             "visibility": "Public",
-            "availability_zone": "us-east-1a"
+            "availability_zone": "us-east-1a",
+            "vpcId": "n1"
           }
         }
       },
@@ -86,7 +87,8 @@
             "az": "us-east-1b",
             "name": "prod-private-subnet",
             "visibility": "Private",
-            "availability_zone": "us-east-1b"
+            "availability_zone": "us-east-1b",
+            "vpcId": "n1"
           }
         }
       },
@@ -112,6 +114,10 @@
             "listener_protocol": "HTTPS",
             "sg_ids": [
               "sg-n4"
+            ],
+            "subnets": [
+              "n2",
+              "n3"
             ]
           }
         }

@@ -30,8 +30,8 @@
       {
         "id": "n1",
         "position": {
-          "x": 100,
-          "y": 100
+          "x": 300,
+          "y": 80
         },
         "data": {
           "resourceType": "Route53",
@@ -46,8 +46,8 @@
       {
         "id": "n2",
         "position": {
-          "x": 350,
-          "y": 50
+          "x": 150,
+          "y": 300
         },
         "data": {
           "resourceType": "LoadBalancer",
@@ -63,15 +63,16 @@
             "listener_protocol": "HTTPS",
             "sg_ids": [
               "sg-n2"
-            ]
+            ],
+            "subnets": []
           }
         }
       },
       {
         "id": "n3",
         "position": {
-          "x": 350,
-          "y": 180
+          "x": 450,
+          "y": 300
         },
         "data": {
           "resourceType": "APIGateway",

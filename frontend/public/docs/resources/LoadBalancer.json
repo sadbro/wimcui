@@ -20,15 +20,15 @@
     "associations": []
   },
   "practices": [
-    "ALB requires at least 2 subnets in different Availability Zones — this is an AWS hard requirement.",
+    "ALB requires at least 2 subnets in different Availability Zones \u2014 this is an AWS hard requirement.",
     "Prefer ALB for HTTP/HTTPS workloads and NLB for raw TCP/UDP or extreme performance needs.",
-    "Configure health checks with an appropriate path and thresholds — unhealthy targets get no traffic.",
+    "Configure health checks with an appropriate path and thresholds \u2014 unhealthy targets get no traffic.",
     "Use HTTPS listeners with ACM certificates for production. Never expose HTTP-only endpoints publicly."
   ],
   "configNotes": [
     "Load balancer type (ALB or NLB) is required.",
     "Listener port and protocol must be specified.",
-    "Health check path is critical for ALB — use a lightweight endpoint like /health.",
+    "Health check path is critical for ALB \u2014 use a lightweight endpoint like /health.",
     "Must be placed in at least 2 subnets across different AZs."
   ],
   "example": {
@@ -62,7 +62,8 @@
             "az": "us-east-1a",
             "name": "pub-a",
             "visibility": "Public",
-            "availability_zone": "us-east-1a"
+            "availability_zone": "us-east-1a",
+            "vpcId": "n1"
           }
         }
       },
@@ -80,7 +81,8 @@
             "az": "us-east-1b",
             "name": "pub-b",
             "visibility": "Public",
-            "availability_zone": "us-east-1b"
+            "availability_zone": "us-east-1b",
+            "vpcId": "n1"
           }
         }
       },
@@ -104,6 +106,10 @@
             "tg_protocol": "HTTP",
             "sg_ids": [
               "sg-n4"
+            ],
+            "subnets": [
+              "n2",
+              "n3"
             ]
           }
         }

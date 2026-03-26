@@ -1268,6 +1268,7 @@ export const resourceFields = {
       type: "dependent-select",
       dependsOn: "origin_type",
       parentTypeMap: { S3: "S3", LoadBalancer: "LoadBalancer", APIGateway: "APIGateway" },
+      assocEdgeDir: "to-ref",
       required: false,
       visibleWhen: (form) => form.origin_type && form.origin_type !== "custom",
     },
@@ -1285,6 +1286,7 @@ export const resourceFields = {
       type: "dependent-select",
       dependsOn: null,
       parentType: "ACM",
+      assocEdgeDir: "from-ref",
       required: false,
     },
     {

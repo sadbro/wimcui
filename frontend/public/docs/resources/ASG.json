@@ -21,10 +21,10 @@
     "Set health_check_grace_period long enough for your application to start. Too short = healthy instances get terminated."
   ],
   "configNotes": [
-    "AMI ID is required — this is the machine image launched by the ASG.",
+    "AMI ID is required \u2014 this is the machine image launched by the ASG.",
     "Instance type is required (e.g., t3.small).",
     "min_size, max_size, and desired_capacity are required.",
-    "Subnets are required — determines which AZs instances launch in."
+    "Subnets are required \u2014 determines which AZs instances launch in."
   ],
   "example": {
     "nodes": [
@@ -57,7 +57,8 @@
             "az": "us-east-1a",
             "name": "sub-a",
             "visibility": "Private",
-            "availability_zone": "us-east-1a"
+            "availability_zone": "us-east-1a",
+            "vpcId": "n1"
           }
         }
       },
@@ -75,7 +76,8 @@
             "az": "us-east-1b",
             "name": "sub-b",
             "visibility": "Private",
-            "availability_zone": "us-east-1b"
+            "availability_zone": "us-east-1b",
+            "vpcId": "n1"
           }
         }
       },
@@ -99,6 +101,10 @@
             "listener_protocol": "HTTPS",
             "sg_ids": [
               "sg-n4"
+            ],
+            "subnets": [
+              "n2",
+              "n3"
             ]
           }
         }

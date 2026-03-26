@@ -23,7 +23,7 @@
   },
   "practices": [
     "Use Fargate for simplicity unless you need EC2 launch type for cost optimization on sustained workloads.",
-    "Task execution role and task role should follow least-privilege — only grant permissions the container actually needs.",
+    "Task execution role and task role should follow least-privilege \u2014 only grant permissions the container actually needs.",
     "Pull container images from ECR, not public Docker Hub, in production to avoid rate limits and supply-chain risk.",
     "Store database credentials in SecretsManager and inject them as environment variables, never bake secrets into images."
   ],
@@ -63,7 +63,8 @@
             "az": "us-east-1a",
             "name": "prod-public-a",
             "visibility": "Public",
-            "availability_zone": "us-east-1a"
+            "availability_zone": "us-east-1a",
+            "vpcId": "n1"
           }
         }
       },
@@ -81,7 +82,8 @@
             "az": "us-east-1a",
             "name": "prod-private-a",
             "visibility": "Private",
-            "availability_zone": "us-east-1a"
+            "availability_zone": "us-east-1a",
+            "vpcId": "n1"
           }
         }
       },
@@ -107,6 +109,10 @@
             "listener_protocol": "HTTPS",
             "sg_ids": [
               "sg-n4"
+            ],
+            "subnets": [
+              "n2",
+              "n3"
             ]
           }
         }
@@ -134,7 +140,10 @@
             "sg_ids": [
               "sg-n5"
             ],
-            "iam_role_id": "role-ecs-n5"
+            "iam_role_id": "role-ecs-n5",
+            "subnets": [
+              "n3"
+            ]
           }
         }
       },

@@ -29,8 +29,8 @@
       {
         "id": "n1",
         "position": {
-          "x": 100,
-          "y": 50
+          "x": 300,
+          "y": 60
         },
         "data": {
           "resourceType": "Route53",
@@ -45,8 +45,8 @@
       {
         "id": "n2",
         "position": {
-          "x": 350,
-          "y": 50
+          "x": 300,
+          "y": 240
         },
         "data": {
           "resourceType": "CloudFront",
@@ -55,15 +55,17 @@
             "price_class": "PriceClass_100",
             "viewer_protocol_policy": "redirect-to-https",
             "name": "cdn",
-            "origin_type": "S3"
+            "origin_type": "S3",
+            "acm_certificate_id": "n4",
+            "origin_id": "n3"
           }
         }
       },
       {
         "id": "n3",
         "position": {
-          "x": 350,
-          "y": 220
+          "x": 150,
+          "y": 440
         },
         "data": {
           "resourceType": "S3",
@@ -81,8 +83,8 @@
       {
         "id": "n4",
         "position": {
-          "x": 600,
-          "y": 50
+          "x": 450,
+          "y": 440
         },
         "data": {
           "resourceType": "ACM",

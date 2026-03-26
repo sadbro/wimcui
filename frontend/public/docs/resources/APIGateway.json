@@ -32,8 +32,8 @@
       {
         "id": "n1",
         "position": {
-          "x": 100,
-          "y": 100
+          "x": 300,
+          "y": 60
         },
         "data": {
           "resourceType": "Route53",
@@ -48,8 +48,8 @@
       {
         "id": "n2",
         "position": {
-          "x": 350,
-          "y": 100
+          "x": 300,
+          "y": 240
         },
         "data": {
           "resourceType": "APIGateway",
@@ -65,8 +65,8 @@
       {
         "id": "n3",
         "position": {
-          "x": 600,
-          "y": 50
+          "x": 150,
+          "y": 440
         },
         "data": {
           "resourceType": "Lambda",
@@ -87,8 +87,8 @@
       {
         "id": "n4",
         "position": {
-          "x": 600,
-          "y": 180
+          "x": 450,
+          "y": 440
         },
         "data": {
           "resourceType": "Lambda",

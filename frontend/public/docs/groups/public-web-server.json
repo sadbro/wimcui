@@ -10,16 +10,16 @@
     "EC2"
   ],
   "practices": [
-    "Always attach a Security Group to EC2 — without one, the default VPC SG allows all outbound but no inbound, leaving your server unreachable.",
-    "Route Table must have a 0.0.0.0/0 → IGW route for the subnet to be truly public. Without this, the IGW does nothing.",
+    "Always attach a Security Group to EC2 \u2014 without one, the default VPC SG allows all outbound but no inbound, leaving your server unreachable.",
+    "Route Table must have a 0.0.0.0/0 \u2192 IGW route for the subnet to be truly public. Without this, the IGW does nothing.",
     "Use a /24 CIDR for the subnet (256 IPs) in dev. Don't waste a /16 on a single-server setup.",
     "This pattern has no redundancy. For production, use a Load Balanced API pattern with multiple AZs instead.",
-    "Restrict SSH (port 22) to your IP only — never open 0.0.0.0/0 on SSH."
+    "Restrict SSH (port 22) to your IP only \u2014 never open 0.0.0.0/0 on SSH."
   ],
   "configNotes": [
     "VPC CIDR should be large enough for future growth (e.g., 10.0.0.0/16).",
     "Subnet CIDR must be within the VPC CIDR range.",
-    "Route Table needs a route: destination 0.0.0.0/0 → target IGW.",
+    "Route Table needs a route: destination 0.0.0.0/0 \u2192 target IGW.",
     "EC2 needs an AMI, instance type, and should be placed in the public subnet."
   ],
   "example": {
@@ -53,7 +53,8 @@
             "az": "us-east-1a",
             "name": "public-subnet",
             "visibility": "Public",
-            "availability_zone": "us-east-1a"
+            "availability_zone": "us-east-1a",
+            "vpcId": "n1"
           }
         }
       },

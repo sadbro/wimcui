@@ -60,7 +60,8 @@
             "tg_port": "80",
             "tg_protocol": "HTTP",
             "listener_port": "443",
-            "listener_protocol": "HTTPS"
+            "listener_protocol": "HTTPS",
+            "subnets": []
           }
         }
       },

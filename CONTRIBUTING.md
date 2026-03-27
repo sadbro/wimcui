@@ -6,7 +6,7 @@ Thanks for your interest in contributing. This guide covers the most common cont
 
 ## Adding a New AWS Resource Type
 
-Adding a resource requires touching **8 files** in a specific order. Each step has a clear pattern you can copy from an existing resource. Use **ElastiCache** as your reference — it's a recent addition that covers all the common patterns (subnets, SGs, traffic rules, HCL generation).
+Adding a resource requires touching **9 files** in a specific order. Each step has a clear pattern you can copy from an existing resource. Use **ElastiCache** as your reference — it's a recent addition that covers all the common patterns (subnets, SGs, traffic rules, HCL generation).
 
 ### The Pipeline
 
@@ -14,6 +14,8 @@ Adding a resource requires touching **8 files** in a specific order. Each step h
 1. Registry  →  2. Config Fields  →  3. Traffic Rules  →  4. Association Rules
       ↓                                                          ↓
 5. Consequence Rules  →  6. HCL Readiness Checks  →  7. HCL Generator  →  8. Canvas Layers
+                                                                                    ↓
+                                                                             9. Doc JSON
 ```
 
 ---
@@ -257,6 +259,52 @@ data: { label: "Data", resourceTypes: ["RDS", "DynamoDB", "ElastiCache", "S3", "
 
 ---
 
+### Step 9: Doc JSON
+
+**File:** `frontend/public/docs/resources/YourResource.json`
+
+Every resource needs a documentation file. It powers the `?` button on the canvas node and provides a loadable reference example.
+
+```json
+{
+  "type": "YourResource",
+  "title": "Your Resource",
+  "description": "One paragraph explaining what this resource is and when to use it.",
+  "connections": {
+    "parents": ["VPC"],
+    "trafficSources": ["EC2"],
+    "trafficTargets": [],
+    "associations": ["SecretsManager"]
+  },
+  "practices": [
+    "Best practice one.",
+    "Best practice two.",
+    "Best practice three."
+  ],
+  "configNotes": [
+    "Note about a required field.",
+    "Note about a constraint users commonly miss."
+  ],
+  "example": {
+    "version": 2,
+    "nodes": [ ... ],
+    "edges": [ ... ],
+    "securityGroups": [ ... ],
+    "roles": [ ... ]
+  }
+}
+```
+
+**Example requirements:**
+- All nodes must have `id`, `position`, `data.resourceType`, `data.label`, and `data.config`
+- Parent-select config fields (`vpcId`, `subnetId`) must be set to the actual parent node ID — consequence rules read these directly, not from edges
+- `sgCapable` resources must have `sg_ids` referencing SGs defined in `securityGroups[]`
+- `iamCapable` resources must have `iam_role_id` referencing a role in `roles[]`
+- Node positions should flow top-to-bottom (source = bottom handle, target = top handle). Use ~200px vertical spacing.
+- Register the new doc in `frontend/public/docs/index.json` under `resources`
+
+---
+
 ## Checklist
 
 Use this checklist before submitting a PR for a new resource:
@@ -269,6 +317,8 @@ Use this checklist before submitting a PR for a new resource:
 - [ ] `ReviewPanel.jsx` — hard-fail checks in `buildHclChecks()`, EDGELESS_TYPES if applicable
 - [ ] `hclGenerator.js` — TF_TYPES mapping, generator function using `createRefResolver`, GENERATION_ORDER entry
 - [ ] `canvasLayers.js` — added to correct layer category
+- [ ] `public/docs/resources/YourResource.json` — doc file with description, practices, configNotes, and working example (version 2, correct vpcId/subnetId/sg_ids/iam_role_id)
+- [ ] `public/docs/index.json` — resource registered in the manifest
 - [ ] `npm run build` passes with no errors
 - [ ] Tested on canvas: node can be placed, configured, connected, and generates valid HCL
 

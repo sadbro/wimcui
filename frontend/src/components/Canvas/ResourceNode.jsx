@@ -6,7 +6,7 @@ import { useCanvasFilter, useSecurityOverlay } from "../../config/canvasFilterCo
 import { isNodeInLayer, getSecurityNodeStyle } from "../../config/canvasLayers";
 import { NodeResizer } from "@reactflow/node-resizer";
 import "@reactflow/node-resizer/dist/style.css";
-import { resourceColor } from "../../config/resourceRegistry";
+import { resourceColor, resourceLabel } from "../../config/resourceRegistry";
 
 export default function ResourceNode({ id, data, selected }) {
   const resourceType = data?.resourceType;
@@ -23,31 +23,31 @@ export default function ResourceNode({ id, data, selected }) {
   const assignedRole = assignedRoleId ? roles.find((r) => r.id === assignedRoleId) : null;
   const borderColor = secStyle?.borderColor || (selected ? "var(--accent)" : colors.border);
 
-  // Public/private icon for Subnet; globe for IGW
-  let visibilityIcon = null;
-  if (resourceType === "Subnet") {
-    const visibility = data?.config?.visibility;
-    visibilityIcon = visibility === "Public" ? "🌐" : "🔒";
-  } else if (resourceType === "IGW") {
-    visibilityIcon = "🌐";
-  }
+  // Type chip label — Subnet folds visibility into the chip
+  const visibility = data?.config?.visibility;
+  const typeChip = resourceType === "Subnet"
+    ? `${visibility === "Public" ? "🌐" : "🔒"} Subnet`
+    : resourceLabel(resourceType);
+
+  // Show the user label only if it's been set (differs from bare type)
+  const userLabel = data.label && data.label !== resourceType ? data.label : null;
 
   return (
     <div style={{
       background: "var(--bg-elevated)",
       border: `1px solid ${borderColor}`,
       borderRadius: 6, padding: "8px 12px",
-      position: "relative", minWidth: 100, minHeight: 40,
+      position: "relative", minWidth: 100, minHeight: 52,
       width: "100%", height: "100%",
       textAlign: "center", display: "flex",
       alignItems: "center", justifyContent: "center",
       boxSizing: "border-box",
-      color: "var(--text-primary)", fontSize: 13,
+      color: "var(--text-primary)",
       boxShadow: secStyle?.boxShadow || (selected ? `0 0 0 2px ${colors.border}44` : "none"),
       opacity: secStyle ? secStyle.opacity : (dimmed ? 0.15 : 1),
       transition: "opacity 0.2s ease, box-shadow 0.2s ease",
     }}>
-      <NodeResizer isVisible={selected} minWidth={100} minHeight={40} color={colors.border} />
+      <NodeResizer isVisible={selected} minWidth={100} minHeight={52} color={colors.border} />
       <div
         onClick={() => data.onDelete && data.onDelete(id)}
         style={{
@@ -90,16 +90,30 @@ export default function ResourceNode({ id, data, selected }) {
         title={`IAM Role: ${assignedRole.name}`}
         />
       )}
-      {visibilityIcon && (
+      <div style={{
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        gap: 3, width: "100%", overflow: "hidden",
+      }}>
         <span style={{
-          position: "absolute", top: 5, left: 7,
-          fontSize: 11, lineHeight: 1, opacity: 0.85,
-          userSelect: "none",
+          fontSize: 10, lineHeight: 1.2,
+          opacity: userLabel ? 0.38 : 0.7,
+          letterSpacing: "0.03em",
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          maxWidth: "100%", userSelect: "none",
         }}>
-          {visibilityIcon}
+          {typeChip}
         </span>
-      )}
-      <span>{data.label}</span>
+        {userLabel && (
+          <span style={{
+            fontSize: 13, fontWeight: 500, lineHeight: 1.3,
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            maxWidth: "100%",
+          }}>
+            {userLabel}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

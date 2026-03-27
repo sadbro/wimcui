@@ -1,7 +1,7 @@
 {
   "type": "Kinesis",
   "title": "Kinesis",
-  "description": "Real-time data streaming service. Ingests and processes high-throughput data streams — clickstreams, logs, IoT telemetry, financial transactions. Ordered within each shard.",
+  "description": "Real-time data streaming service. Ingests and processes high-throughput data streams \u2014 clickstreams, logs, IoT telemetry, financial transactions. Ordered within each shard.",
   "connections": {
     "parents": [],
     "trafficSources": [
@@ -15,7 +15,7 @@
     "associations": []
   },
   "practices": [
-    "Start with on-demand capacity mode unless you know your exact throughput — it auto-scales shards.",
+    "Start with on-demand capacity mode unless you know your exact throughput \u2014 it auto-scales shards.",
     "Use enhanced fan-out for multiple consumers that each need the full stream throughput.",
     "Set retention period based on your recovery needs: 24h default, up to 365 days for compliance.",
     "Use Kinesis over SQS when you need ordered processing, multiple consumers, or replay capability."
@@ -101,7 +101,7 @@
         "type": "traffic"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [
       {
         "id": "sg-n1",

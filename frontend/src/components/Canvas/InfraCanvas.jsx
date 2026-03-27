@@ -381,7 +381,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
   }, [onEdgesChange, edges]);
 
     const placeNode = (type, position, config = {}) => {
-    const displayLabel = config.name ? `${type}.${config.name}` : type;
+    const displayLabel = config.display_name?.trim() || config.name?.trim() || type;
     const newId = getId(type, nodesRef.current);
     setNodes((nds) =>
       nds.concat({
@@ -521,8 +521,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
       }
     }
 
-    const displayLabel = config.display_name?.trim()
-      || (config.name ? `${type}.${config.name}` : type);
+    const displayLabel = config.display_name?.trim() || config.name?.trim() || type;
 
     const updatedNode = {
       ...editingNode,

@@ -9,7 +9,7 @@
     "associations": []
   },
   "practices": [
-    "Always configure a dead-letter queue (DLQ) — messages that fail processing repeatedly need a place to land for inspection.",
+    "Always configure a dead-letter queue (DLQ) \u2014 messages that fail processing repeatedly need a place to land for inspection.",
     "Use FIFO queues only when ordering matters. Standard queues have much higher throughput.",
     "Set visibility timeout longer than your consumer's processing time, or messages get re-delivered mid-processing.",
     "SQS is accessed via IAM, not network edges. Your compute resources need sqs:SendMessage and sqs:ReceiveMessage permissions."
@@ -75,7 +75,7 @@
       }
     ],
     "edges": [],
-    "version": 1,
+    "version": 2,
     "securityGroups": [],
     "roles": [
       {

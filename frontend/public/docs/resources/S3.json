@@ -10,7 +10,7 @@
   },
   "practices": [
     "Block public access by default. If you need public content, put CloudFront in front of S3.",
-    "Enable versioning for any bucket storing important data — accidental deletes become recoverable.",
+    "Enable versioning for any bucket storing important data \u2014 accidental deletes become recoverable.",
     "Use lifecycle rules to move infrequently accessed data to S3-IA or Glacier to reduce costs.",
     "Access S3 via IAM policies on your compute resources, not access keys."
   ],
@@ -61,7 +61,7 @@
       }
     ],
     "edges": [],
-    "version": 1,
+    "version": 2,
     "securityGroups": [],
     "roles": [
       {

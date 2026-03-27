@@ -89,7 +89,7 @@ export default function ConfigModal({
   // Migration: ECS and RDS moved from subnetId (single) to subnets[] (multi-select)
   // Seed subnets from legacy subnetId so old canvases open correctly
   const migratedConfig = {
-    display_name: existingConfig.display_name ?? nodeLabel,
+    display_name: existingConfig.display_name ?? (nodeLabel !== resourceType ? nodeLabel : ""),
     ...existingConfig,
   };
   if ((resourceType === "ECS" || resourceType === "RDS") && !migratedConfig.subnets && migratedConfig.subnetId) {

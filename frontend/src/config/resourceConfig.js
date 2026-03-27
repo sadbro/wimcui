@@ -3,8 +3,8 @@ import { isValidCIDR, isValidPrefix, cidrContains, cidrsOverlap } from "./cidrUt
 
 // Base fields shared by all resources
 const baseFields = [
-  { key: "display_name", label: "Display Name", type: "text", placeholder: "My Resource", required: false },
-  { key: "name", label: "Name", type: "text", placeholder: "my-resource", required: true },
+  { key: "display_name", label: "Label", type: "text", placeholder: "e.g. Web Server", required: false },
+  { key: "name", label: "Resource Name", type: "text", placeholder: "my-resource", required: true },
   { key: "description", label: "Description", type: "text", placeholder: "...", required: false },
 ];
 

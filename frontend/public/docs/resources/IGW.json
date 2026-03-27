@@ -66,7 +66,8 @@
           "resourceType": "IGW",
           "label": "Internet Gateway",
           "config": {
-            "name": "web-igw"
+            "name": "web-igw",
+            "vpcId": "n1"
           }
         }
       },
@@ -117,7 +118,7 @@
         "type": "association"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [],
     "roles": []
   }

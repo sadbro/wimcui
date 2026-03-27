@@ -15,7 +15,7 @@
     "associations": []
   },
   "practices": [
-    "Use alias records for AWS resources (ALB, CloudFront, S3) — they're free and resolve faster than CNAMEs.",
+    "Use alias records for AWS resources (ALB, CloudFront, S3) \u2014 they're free and resolve faster than CNAMEs.",
     "Set appropriate TTL: low (60s) during migrations for fast failover, higher (300s+) for stable records to reduce DNS queries.",
     "Use health checks with failover routing for high availability across regions.",
     "Register domains through Route53 for simplest integration, or transfer DNS to Route53 hosted zones."
@@ -100,7 +100,7 @@
         "type": "traffic"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [
       {
         "id": "sg-n2",

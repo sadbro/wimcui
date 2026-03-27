@@ -9,9 +9,9 @@
     "associations": []
   },
   "practices": [
-    "Use ECR instead of public Docker Hub in production — faster pulls, no rate limits, and image scanning included.",
+    "Use ECR instead of public Docker Hub in production \u2014 faster pulls, no rate limits, and image scanning included.",
     "Enable image scanning on push to catch known vulnerabilities before deployment.",
-    "Set lifecycle policies to clean up old/untagged images — ECR storage costs add up over time.",
+    "Set lifecycle policies to clean up old/untagged images \u2014 ECR storage costs add up over time.",
     "Use immutable image tags in production to prevent accidental overwrites of deployed images."
   ],
   "configNotes": [
@@ -60,7 +60,7 @@
       }
     ],
     "edges": [],
-    "version": 1,
+    "version": 2,
     "securityGroups": [],
     "roles": [
       {

@@ -87,7 +87,8 @@
           "config": {
             "name": "app-nat",
             "elasticIp": "52.14.200.10",
-            "connectivity_type": "public"
+            "connectivity_type": "public",
+            "subnetId": "n2"
           }
         }
       },
@@ -121,7 +122,8 @@
           "resourceType": "IGW",
           "label": "Internet Gateway",
           "config": {
-            "name": "app-igw"
+            "name": "app-igw",
+            "vpcId": "n1"
           }
         }
       },
@@ -196,7 +198,7 @@
         "type": "association"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [],
     "roles": []
   }

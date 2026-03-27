@@ -129,7 +129,8 @@
           "resourceType": "IGW",
           "label": "Internet GW",
           "config": {
-            "name": "prod-igw"
+            "name": "prod-igw",
+            "vpcId": "n1"
           }
         }
       },
@@ -144,7 +145,8 @@
           "label": "NAT GW",
           "config": {
             "name": "prod-nat",
-            "connectivity_type": "public"
+            "connectivity_type": "public",
+            "subnetId": "n3"
           }
         }
       },
@@ -232,7 +234,8 @@
             "sg_ids": [
               "sg-n11"
             ],
-            "iam_role_id": "role-ec2-n11"
+            "iam_role_id": "role-ec2-n11",
+            "subnetId": "n4"
           }
         }
       },
@@ -256,7 +259,8 @@
             "storage_encrypted": "true",
             "sg_ids": [
               "sg-n12"
-            ]
+            ],
+            "subnetId": "n5"
           }
         }
       }
@@ -365,7 +369,7 @@
         "type": "traffic"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [
       {
         "id": "sg-n10",

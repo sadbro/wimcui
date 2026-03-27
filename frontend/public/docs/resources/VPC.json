@@ -9,7 +9,7 @@
     "associations": []
   },
   "practices": [
-    "Never use the default VPC for production workloads — create a dedicated VPC with intentional CIDR planning.",
+    "Never use the default VPC for production workloads \u2014 create a dedicated VPC with intentional CIDR planning.",
     "Plan your CIDR range for future growth; changing it later is painful.",
     "Use a /16 CIDR for production environments and /24 for small dev/test environments.",
     "Enable VPC Flow Logs for network troubleshooting and auditing."
@@ -86,7 +86,7 @@
         "type": "structural"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [],
     "roles": []
   }

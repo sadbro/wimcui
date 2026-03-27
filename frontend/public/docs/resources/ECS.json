@@ -143,7 +143,8 @@
             "iam_role_id": "role-ecs-n5",
             "subnets": [
               "n3"
-            ]
+            ],
+            "subnetId": "n3"
           }
         }
       },
@@ -170,7 +171,8 @@
             "storage_encrypted": "true",
             "sg_ids": [
               "sg-n6"
-            ]
+            ],
+            "subnetId": "n3"
           }
         }
       }
@@ -219,7 +221,7 @@
         "type": "traffic"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [
       {
         "id": "sg-n4",

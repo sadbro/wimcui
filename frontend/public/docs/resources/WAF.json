@@ -1,7 +1,7 @@
 {
   "type": "WAF",
   "title": "WAF",
-  "description": "Web Application Firewall that protects against common web exploits — SQL injection, XSS, bot traffic, and DDoS. Attaches to ALB, CloudFront, or API Gateway as a shield layer.",
+  "description": "Web Application Firewall that protects against common web exploits \u2014 SQL injection, XSS, bot traffic, and DDoS. Attaches to ALB, CloudFront, or API Gateway as a shield layer.",
   "connections": {
     "parents": [],
     "trafficSources": [],
@@ -14,9 +14,9 @@
   },
   "practices": [
     "Start with AWS Managed Rule Groups (AWSManagedRulesCommonRuleSet, SQLiRuleSet) before writing custom rules.",
-    "Use rate-based rules to protect against brute force and DDoS — set limits based on your normal traffic patterns.",
+    "Use rate-based rules to protect against brute force and DDoS \u2014 set limits based on your normal traffic patterns.",
     "Attach WAF to CloudFront for global protection, or to ALB/APIGW for regional protection.",
-    "Enable logging to S3 or CloudWatch to understand what WAF is blocking — false positives are common initially."
+    "Enable logging to S3 or CloudWatch to understand what WAF is blocking \u2014 false positives are common initially."
   ],
   "configNotes": [
     "WAF name is required.",
@@ -97,7 +97,7 @@
         "type": "association"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [],
     "roles": []
   }

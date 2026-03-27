@@ -16,7 +16,7 @@ The name is intentional. It answers the question architects ask when staring at 
 
 ### Canvas and Resources
 
-* Drag-and-drop placement of 26 AWS resource types:
+* Drag-and-drop placement of 25 AWS resource types:
   * **Network**: VPC, Subnet, Internet Gateway, NAT Gateway, Route Table
   * **Compute**: EC2, ECS, Lambda, Auto Scaling Group
   * **Database**: RDS, DynamoDB, ElastiCache
@@ -30,6 +30,8 @@ The name is intentional. It answers the question architects ask when staring at 
 * Traffic edges that model ingress and egress rules between compute resources
 * Association edges that model non-traffic relationships: Route Table to Subnet, ACM to ALB/CloudFront, CloudFront to S3/ALB origin, WAF to ALB/CloudFront/API Gateway, SecretsManager to RDS/ECS
 * Per-resource configuration via modal: CIDR validation, AZ selection, engine versions, instance types, LB listener/target group settings, and more
+* Editable display name per resource — shown on the canvas label, independent of the internal config name
+* Reference examples: each resource type has a loadable canvas example (accessible via the `?` button) with working configs, correct SGs, IAM roles, and architecture notes; 3 group examples covering common patterns (public web server, 3-tier app, serverless API)
 
 ### IAM and Security
 
@@ -45,7 +47,7 @@ The name is intentional. It answers the question architects ask when staring at 
 
 ### HCL Generation and Terraform Validation
 
-* Full Terraform HCL generation covering all 26 resource types, Security Groups, and IAM Roles
+* Full Terraform HCL generation covering all 25 resource types, Security Groups, and IAM Roles
 * Safe reference resolution: broken references produce `# WARNING:` comments and collected warnings instead of `undefined` in output
 * Reverse name map: maps Terraform resource names back to canvas node IDs for error mapping
 * Dual-mode Terraform validation:
@@ -54,6 +56,18 @@ The name is intentional. It answers the question architects ask when staring at 
   * Auto-detection at startup with mode indicator in the UI
 * Copy to clipboard, download as `.tf`, and validate — all from the HCL Readiness tab
 
+### Reference Examples
+
+Every resource type has a documentation page accessible by clicking `?` on any canvas node or the sidebar. Each doc page explains what the resource is, how it connects to others, and best practices. Clicking "Load Example" replaces the current canvas with a working reference example that includes:
+
+* Correctly configured nodes with realistic values
+* Structural, traffic, and association edges
+* Pre-defined Security Groups with appropriate inbound/outbound rules
+* IAM roles with relevant AWS managed policies
+* A note in the Review panel flagging what to add for production use
+
+Three group examples are also available (Public Web Server, Classic 3-Tier App, Serverless API) and loadable from the sidebar resources panel.
+
 ### Canvas Views
 
 * **Layer filters**: toggle between All, Network, Compute, Data, and Services views — dims unrelated resources and edges for focus
@@ -61,7 +75,7 @@ The name is intentional. It answers the question architects ask when staring at 
 
 ### Canvas Management
 
-* Canvas export and import as JSON with versioned schema and forward migration
+* Canvas export and import as JSON with versioned schema and forward migration (current schema: v2)
 * Undo and redo with full state restoration including edges and IAM assignments
 * Dark and light theme
 * Region selector
@@ -73,7 +87,7 @@ The name is intentional. It answers the question architects ask when staring at 
 * Multi-region canvases — one region per canvas
 * Importing existing Terraform or CloudFormation into the canvas
 * Additional resources: VPC Endpoints, Cognito, VPC Peering, EFS, EKS
-* Predefined architecture templates
+* Blueprints: saved, shareable, parameterized architecture templates (planned)
 
 ---
 
@@ -106,15 +120,17 @@ wimcui/
 │   │   │   │   └── AssociationEdge.jsx
 │   │   │   ├── Modal/
 │   │   │   │   ├── ConfigModal.jsx
-│   │   │   │   └── EdgeConfigModal.jsx
+│   │   │   │   ├── DocsModal.jsx
+│   │   │   │   ├── EdgeConfigModal.jsx
+│   │   │   │   └── SGAutoCreateModal.jsx
 │   │   │   └── Sidebar/
 │   │   │       ├── ResourcePanel.jsx
 │   │   │       ├── ReviewPanel.jsx      # Consequence rules, HCL readiness, validation UI
 │   │   │       └── RoleManager.jsx
 │   │   ├── config/
-│   │   │   ├── resourceRegistry.js      # 26 resource type definitions
+│   │   │   ├── resourceRegistry.js      # 25 resource type definitions
 │   │   │   ├── resourceConfig.js        # Per-type field definitions
-│   │   │   ├── hclGenerator.js          # Full HCL generator (all 26 types + SGs + IAM)
+│   │   │   ├── hclGenerator.js          # Full HCL generator (all 25 types + SGs + IAM)
 │   │   │   ├── canvasContext.js          # buildContext() — derived state from canvas
 │   │   │   ├── consequenceRules.js      # Warning-level validation rules
 │   │   │   ├── trafficRules.js          # Traffic edge validation
@@ -128,6 +144,11 @@ wimcui/
 │   │   │   └── awsRegions.js
 │   │   ├── App.jsx
 │   │   └── main.jsx
+│   ├── public/
+│   │   └── docs/
+│   │       ├── index.json                   # Resource and group manifest
+│   │       ├── resources/                   # 25 per-resource doc + example JSONs
+│   │       └── groups/                      # 3 group architecture example JSONs
 │   ├── index.html
 │   ├── package.json
 │   └── vite.config.js

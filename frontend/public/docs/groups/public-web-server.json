@@ -68,7 +68,8 @@
           "resourceType": "IGW",
           "label": "Internet GW",
           "config": {
-            "name": "dev-igw"
+            "name": "dev-igw",
+            "vpcId": "n1"
           }
         }
       },
@@ -105,7 +106,8 @@
             "ami": "ami-0abcdef1234567890",
             "instance_type": "t3.small",
             "name": "web-server",
-            "iam_role_id": "role-ec2-n5"
+            "iam_role_id": "role-ec2-n5",
+            "subnetId": "n2"
           }
         }
       }
@@ -142,7 +144,7 @@
         "type": "association"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [],
     "roles": [
       {

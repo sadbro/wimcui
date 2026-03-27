@@ -9,8 +9,8 @@
     "SQS"
   ],
   "practices": [
-    "Don't put Lambda in a VPC unless it needs to access private resources like RDS — VPC adds cold start latency and NAT Gateway costs.",
-    "Use API Gateway HTTP API (v2) over REST API for simple use cases — it's cheaper and has lower latency.",
+    "Don't put Lambda in a VPC unless it needs to access private resources like RDS \u2014 VPC adds cold start latency and NAT Gateway costs.",
+    "Use API Gateway HTTP API (v2) over REST API for simple use cases \u2014 it's cheaper and has lower latency.",
     "Lambda IAM roles should follow least-privilege: only grant dynamodb:GetItem, PutItem, Query on the specific table ARN.",
     "Use DynamoDB on-demand mode for unpredictable traffic. Switch to provisioned only when you have stable, predictable load.",
     "Add SQS between synchronous API responses and async processing. Return 202 Accepted immediately, process in background.",
@@ -20,7 +20,7 @@
     "API Gateway needs a name and stage (e.g., prod).",
     "Lambda needs runtime, handler, memory, and timeout configured.",
     "DynamoDB needs a table name and partition key.",
-    "SQS is optional — add it for async processing patterns."
+    "SQS is optional \u2014 add it for async processing patterns."
   ],
   "example": {
     "nodes": [
@@ -134,7 +134,7 @@
         "type": "traffic"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [
       {
         "id": "sg-n2",

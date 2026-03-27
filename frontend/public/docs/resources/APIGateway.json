@@ -16,16 +16,16 @@
     "associations": []
   },
   "practices": [
-    "Use HTTP API (v2) over REST API unless you need REST-specific features like request validation or API keys — HTTP API is cheaper and faster.",
+    "Use HTTP API (v2) over REST API unless you need REST-specific features like request validation or API keys \u2014 HTTP API is cheaper and faster.",
     "Always enable throttling. API Gateway can absorb traffic spikes, but your backend might not.",
     "Use custom domain names with Route53 and ACM certificates for production APIs.",
-    "Enable CloudWatch logging for troubleshooting — request/response logs are invaluable during incidents."
+    "Enable CloudWatch logging for troubleshooting \u2014 request/response logs are invaluable during incidents."
   ],
   "configNotes": [
     "API name is required.",
     "Protocol type: REST (full featured), HTTP (simpler, cheaper), or WebSocket.",
     "Stage name (e.g., prod, dev) is required for deployment.",
-    "Throttling defaults to 10,000 requests/second — adjust based on your backend capacity."
+    "Throttling defaults to 10,000 requests/second \u2014 adjust based on your backend capacity."
   ],
   "example": {
     "nodes": [
@@ -127,7 +127,7 @@
         "type": "traffic"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [
       {
         "id": "sg-n3",

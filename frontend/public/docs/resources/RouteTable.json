@@ -129,7 +129,8 @@
           "resourceType": "IGW",
           "label": "Internet Gateway",
           "config": {
-            "name": "main-igw"
+            "name": "main-igw",
+            "vpcId": "n1"
           }
         }
       },
@@ -145,7 +146,8 @@
           "config": {
             "name": "main-nat",
             "elasticIp": "34.220.100.55",
-            "connectivity_type": "public"
+            "connectivity_type": "public",
+            "subnetId": "n2"
           }
         }
       }
@@ -186,9 +188,21 @@
         "source": "n5",
         "target": "n7",
         "type": "association"
+      },
+      {
+        "id": "e7",
+        "source": "n1",
+        "target": "n6",
+        "type": "structural"
+      },
+      {
+        "id": "e8",
+        "source": "n2",
+        "target": "n7",
+        "type": "structural"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [],
     "roles": []
   }

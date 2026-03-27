@@ -1,7 +1,7 @@
 {
   "type": "Lambda",
   "title": "Lambda",
-  "description": "Serverless compute that runs code in response to events. No servers to manage — you pay only for execution time. Supports Node.js, Python, Go, Java, and more. Accesses S3, DynamoDB, SQS, and SNS via IAM (not traffic edges).",
+  "description": "Serverless compute that runs code in response to events. No servers to manage \u2014 you pay only for execution time. Supports Node.js, Python, Go, Java, and more. Accesses S3, DynamoDB, SQS, and SNS via IAM (not traffic edges).",
   "connections": {
     "parents": [],
     "trafficSources": [
@@ -19,16 +19,16 @@
     "associations": []
   },
   "practices": [
-    "Avoid placing Lambda in a VPC unless it needs access to private resources like RDS — VPC adds cold start latency.",
+    "Avoid placing Lambda in a VPC unless it needs access to private resources like RDS \u2014 VPC adds cold start latency.",
     "Set memory appropriately. CPU scales proportionally with memory, so more memory = faster execution.",
     "Use environment variables for configuration, never hardcode secrets. Use SecretsManager for sensitive values.",
-    "Design for short execution. Max timeout is 15 minutes — if you need longer, use Step Functions or ECS."
+    "Design for short execution. Max timeout is 15 minutes \u2014 if you need longer, use Step Functions or ECS."
   ],
   "configNotes": [
     "Runtime is required (e.g., nodejs20.x, python3.12).",
     "Handler specifies the entry point (e.g., index.handler).",
     "Memory ranges from 128MB to 10GB. Default 128MB is usually too low.",
-    "Timeout defaults to 3 seconds — increase for DB-connected functions."
+    "Timeout defaults to 3 seconds \u2014 increase for DB-connected functions."
   ],
   "example": {
     "nodes": [
@@ -98,7 +98,7 @@
         "type": "traffic"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [
       {
         "id": "sg-n2",

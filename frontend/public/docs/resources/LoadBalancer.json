@@ -130,7 +130,8 @@
             "sg_ids": [
               "sg-n5"
             ],
-            "iam_role_id": "role-ec2-n5"
+            "iam_role_id": "role-ec2-n5",
+            "subnetId": "n2"
           }
         }
       },
@@ -150,7 +151,8 @@
             "sg_ids": [
               "sg-n6"
             ],
-            "iam_role_id": "role-ec2-n5"
+            "iam_role_id": "role-ec2-n5",
+            "subnetId": "n3"
           }
         }
       }
@@ -199,7 +201,7 @@
         "type": "traffic"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [
       {
         "id": "sg-n4",

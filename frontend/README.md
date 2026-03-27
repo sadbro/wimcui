@@ -1,16 +1,77 @@
-# React + Vite
+# WIMCUI Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Vite application. The frontend is the entire product UI — canvas, sidebar, modals, validation display, and HCL output.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+* React 18 with React Flow for the canvas
+* Vite for bundling and dev server
+* No UI framework — all styling is inline with CSS variables
 
-## React Compiler
+## Structure
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```
+src/
+├── components/
+│   ├── Canvas/
+│   │   ├── InfraCanvas.jsx          # Main canvas — nodes, edges, state, all actions
+│   │   ├── ResourceNode.jsx         # Standard canvas node
+│   │   └── PublicNode.jsx           # Public-facing resource variant node
+│   ├── Edges/
+│   │   ├── StructuralEdge.jsx       # Parent-child containment edges
+│   │   ├── TrafficEdge.jsx          # Ingress/egress edges between compute
+│   │   └── AssociationEdge.jsx      # Non-traffic relationship edges
+│   ├── Modal/
+│   │   ├── ConfigModal.jsx          # Per-resource config form
+│   │   ├── DocsModal.jsx            # Resource docs + reference example loader
+│   │   ├── EdgeConfigModal.jsx      # Traffic edge rule config
+│   │   └── SGAutoCreateModal.jsx    # Prompt to create SGs on import
+│   └── Sidebar/
+│       ├── ResourcePanel.jsx        # Drag sources, group examples
+│       ├── ReviewPanel.jsx          # Consequence rules, HCL readiness, validation
+│       └── RoleManager.jsx          # IAM role and SG management
+├── config/
+│   ├── resourceRegistry.js          # Type metadata (label, icon, category, edge rules)
+│   ├── resourceConfig.js            # Per-type field definitions for ConfigModal
+│   ├── hclGenerator.js              # Full Terraform HCL generator
+│   ├── canvasContext.js             # buildContext() — derived canvas state
+│   ├── consequenceRules.js          # Warning-level consequence rules
+│   ├── trafficRules.js              # Traffic edge validity rules
+│   ├── associationRules.js          # Association edge validity rules
+│   ├── canvasLayers.js              # Layer filter + security overlay logic
+│   ├── canvasFilterContext.js       # React contexts for layer/security state
+│   ├── canvasMigrations.js          # Versioned JSON migration chain
+│   ├── iamConfig.js                 # IAM policy catalog
+│   ├── rolesContext.js              # Roles + SG React context
+│   ├── cidrUtils.js                 # CIDR validation helpers
+│   └── awsRegions.js                # Region → AZ map
+├── App.jsx
+└── main.jsx
 
-## Expanding the ESLint configuration
+public/
+└── docs/
+    ├── index.json                   # Resource and group doc manifest
+    ├── resources/                   # 25 per-resource doc + example JSONs
+    └── groups/                      # 3 group architecture example JSONs
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Dev
+
+```bash
+npm install
+npm run dev
+```
+
+Runs at `http://localhost:5173`. The Vite dev server proxies `/api/*` and `/graph/*` to the backend at `http://localhost:8000`.
+
+## Key Concepts
+
+**Edge types**: `structural` (parent-child, drawn on config save), `traffic` (manually drawn, drives SG rules), `association` (manually drawn, models non-traffic links like RT→Subnet or ACM→CloudFront).
+
+**Config flow**: double-click a node → ConfigModal opens → on save, `InfraCanvas.onEditSave` reconciles structural edges (by parentType fields), association edges (by assocEdgeDir fields), updates the node label (`config.display_name` → `config.name` → resource type), and writes config back to node data. The node renders as a two-line chip: resource type (small, muted) above the user label.
+
+**Consequence rules**: `buildContext()` in canvasContext.js derives typed node collections and lookup maps from the current canvas. `consequenceRules.js` receives that context and returns typed result objects. ReviewPanel renders them grouped by category.
+
+**HCL readiness**: a separate set of hard-fail checks in ReviewPanel that must all pass before generation is enabled.
+
+**Doc examples**: each resource JSON in `public/docs/resources/` has an `example` field with `nodes`, `edges`, `securityGroups`, and `roles` — a valid canvas export that loads directly. DocsModal loads it via `onLoadExample`.

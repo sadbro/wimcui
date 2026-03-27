@@ -9,9 +9,9 @@
     "associations": []
   },
   "practices": [
-    "Use on-demand capacity mode unless you have predictable, steady traffic — it prevents over-provisioning.",
+    "Use on-demand capacity mode unless you have predictable, steady traffic \u2014 it prevents over-provisioning.",
     "Design your partition key for even distribution. Hot partitions cause throttling regardless of capacity.",
-    "Enable point-in-time recovery for production tables — it's cheap insurance against accidental deletes.",
+    "Enable point-in-time recovery for production tables \u2014 it's cheap insurance against accidental deletes.",
     "Access DynamoDB via IAM roles on your compute, not embedded access keys."
   ],
   "configNotes": [
@@ -87,7 +87,7 @@
         "type": "traffic"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [
       {
         "id": "sg-n2",

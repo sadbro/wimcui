@@ -10,12 +10,12 @@
   },
   "practices": [
     "Use EventBridge over SNS when you need content-based filtering, scheduling, or cross-account event routing.",
-    "Define rules with specific event patterns — avoid catch-all rules that trigger on everything.",
+    "Define rules with specific event patterns \u2014 avoid catch-all rules that trigger on everything.",
     "Use the default event bus for AWS service events, custom buses for your application events.",
     "EventBridge is accessed via IAM. Producers need events:PutEvents, targets are invoked via resource-based policies."
   ],
   "configNotes": [
-    "Event bus name — use 'default' for AWS service events or create a custom bus.",
+    "Event bus name \u2014 use 'default' for AWS service events or create a custom bus.",
     "Rules define which events to match using event patterns (JSON-based matching).",
     "Schedule expressions support cron and rate syntax for time-based triggers."
   ],
@@ -73,7 +73,7 @@
       }
     ],
     "edges": [],
-    "version": 1,
+    "version": 2,
     "securityGroups": [],
     "roles": [
       {

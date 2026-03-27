@@ -1,7 +1,7 @@
 {
   "type": "ACM",
   "title": "ACM Certificate",
-  "description": "Managed SSL/TLS certificates for HTTPS. Handles provisioning, renewal, and deployment to ALBs and CloudFront. Free for public certificates — no reason not to use HTTPS.",
+  "description": "Managed SSL/TLS certificates for HTTPS. Handles provisioning, renewal, and deployment to ALBs and CloudFront. Free for public certificates \u2014 no reason not to use HTTPS.",
   "connections": {
     "parents": [],
     "trafficSources": [],
@@ -12,7 +12,7 @@
     ]
   },
   "practices": [
-    "Use DNS validation over email — it's automated and renews without manual intervention.",
+    "Use DNS validation over email \u2014 it's automated and renews without manual intervention.",
     "For CloudFront, the ACM certificate MUST be in us-east-1 regardless of your application's region.",
     "Request certificates with SANs (Subject Alternative Names) for multiple domains on one cert.",
     "ACM certificates are free for public domains. There's no cost reason to avoid HTTPS."
@@ -93,7 +93,7 @@
         "type": "association"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [],
     "roles": []
   }

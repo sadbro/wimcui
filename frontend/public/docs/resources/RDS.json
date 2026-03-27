@@ -99,7 +99,8 @@
             "sg_ids": [
               "sg-n4"
             ],
-            "iam_role_id": "role-ec2-n4"
+            "iam_role_id": "role-ec2-n4",
+            "subnetId": "n2"
           }
         }
       },
@@ -123,7 +124,8 @@
             "storage_encrypted": "true",
             "sg_ids": [
               "sg-n5"
-            ]
+            ],
+            "subnetId": "n3"
           }
         }
       }
@@ -160,7 +162,7 @@
         "type": "traffic"
       }
     ],
-    "version": 1,
+    "version": 2,
     "securityGroups": [
       {
         "id": "sg-n4",

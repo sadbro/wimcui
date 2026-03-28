@@ -37,6 +37,8 @@ export const trafficRules = {
   // ── Auto Scaling ─────────────────────────────────────────────────────────
   ASG:          { allowedSources: ["LoadBalancer", "Public", "Route53"],                                              allowedTargets: ["RDS", "ElastiCache", "EC2", "Kinesis"] },
   // Global services — accessed via IAM, not network traffic edges
+  StepFunctions:  null,  // orchestrator — relationships via association edges
+  Cognito:        null,  // auth layer — relationships via association edges
   ACM:            null,
   CloudFront:     null,  // CDN — origin association, not traffic edges
   WAF:            null,  // attached via association

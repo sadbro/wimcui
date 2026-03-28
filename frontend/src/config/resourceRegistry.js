@@ -232,6 +232,24 @@ export const RESOURCE_REGISTRY = {
     sgCapable:   false,
     iamCapable:  false,
   },
+  // ─── Orchestration ──────────────────────────────────────────────────────────
+  StepFunctions: {
+    label:       "Step Functions",
+    color:       "#e84393",
+    category:    "global",
+    defaultSize: { width: 180, height: 60 },
+    sgCapable:   false,
+    iamCapable:  true,
+  },
+  // ─── Auth ───────────────────────────────────────────────────────────────────
+  Cognito: {
+    label:       "Cognito",
+    color:       "#c084fc",
+    category:    "global",
+    defaultSize: { width: 160, height: 60 },
+    sgCapable:   false,
+    iamCapable:  false,
+  },
 };
 
 /** All registered resource type keys */

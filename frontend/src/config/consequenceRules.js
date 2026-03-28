@@ -455,7 +455,7 @@ export const consequenceRules = [
     category: "smell",
     check: ({ nodes, edges }) => {
       // These types are intentionally edgeless — accessed via IAM policies, not network edges
-      const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "SNS", "EventBridge", "SecretsManager", "ECR", "Route53"];
+      const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "SNS", "EventBridge", "SecretsManager", "ECR", "Route53", "Cognito"];
       return nodes
         .filter((n) => {
           if (EDGELESS_TYPES.includes(n.data?.resourceType)) return false;
@@ -623,6 +623,42 @@ export const consequenceRules = [
         node: null,
         message: `Role "${role.name}" is defined but not assigned to any node — will generate dead IAM resources in Terraform`,
       })),
+  },
+
+  // ─── Step Functions ────────────────────────────────────────────────────────
+
+  {
+    id: "sfn_express_no_logging",
+    category: "security",
+    check: ({ byResourceType }) => {
+      const sfns = byResourceType["StepFunctions"] || [];
+      return sfns
+        .filter((n) =>
+          n.data?.config?.type === "EXPRESS" &&
+          (!n.data?.config?.logging_level || n.data.config.logging_level === "OFF")
+        )
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} is EXPRESS type with logging OFF — Express machines have no built-in execution history, making failed executions undebuggable without CloudWatch logs`,
+        }));
+    },
+  },
+
+  {
+    id: "sfn_no_iam_role",
+    category: "security",
+    check: ({ byResourceType, roleById }) => {
+      const sfns = byResourceType["StepFunctions"] || [];
+      return sfns
+        .filter((n) => {
+          const roleId = n.data?.config?.iam_role_id;
+          return !roleId || !roleById(roleId);
+        })
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has no execution role — Step Functions cannot invoke Lambda, ECS, or other services without an IAM role`,
+        }));
+    },
   },
 
   // ─── ECS ───────────────────────────────────────────────────────────────────

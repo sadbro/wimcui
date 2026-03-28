@@ -24,7 +24,9 @@
     { "key": "Kinesis", "title": "Kinesis", "summary": "Real-time data streaming" },
     { "key": "ACM", "title": "ACM Certificate", "summary": "SSL/TLS certificates" },
     { "key": "CloudFront", "title": "CloudFront", "summary": "Global CDN" },
-    { "key": "WAF", "title": "WAF", "summary": "Web application firewall" }
+    { "key": "WAF", "title": "WAF", "summary": "Web application firewall" },
+    { "key": "Cognito", "title": "Cognito User Pool", "summary": "User authentication and authorization" },
+    { "key": "StepFunctions", "title": "Step Functions", "summary": "Serverless workflow orchestration" }
   ],
   "groups": [
     { "key": "public-web-server", "title": "Public Web Server", "summary": "Internet-facing EC2 with VPC, subnet, IGW, and security group", "group": true },

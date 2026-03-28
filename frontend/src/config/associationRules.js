@@ -18,6 +18,10 @@ export const associationRules = {
   ACM:            { allowedTargets: ["LoadBalancer", "CloudFront"] },  // certificate attachment
   CloudFront:     { allowedTargets: ["S3", "LoadBalancer", "APIGateway"] }, // origin association
   WAF:            { allowedTargets: ["LoadBalancer", "CloudFront", "APIGateway"] }, // web ACL attachment
+  StepFunctions:  { allowedTargets: ["Lambda", "ECS", "SQS", "DynamoDB", "SNS"] }, // task invocations
+  EventBridge:    { allowedTargets: ["StepFunctions", "Lambda"] },               // event-driven triggers
+  Cognito:        { allowedTargets: ["Lambda"] },                                 // Lambda triggers
+  APIGateway:     { allowedTargets: ["Cognito"] },                                // Cognito authorizer
 };
 
 /**

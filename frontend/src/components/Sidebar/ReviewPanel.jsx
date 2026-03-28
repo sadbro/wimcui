@@ -94,6 +94,8 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
   const evb      = ctx.byResourceType?.["EventBridge"]    || [];
   const secrets  = ctx.byResourceType?.["SecretsManager"] || [];
   const apigws   = ctx.byResourceType?.["APIGateway"]     || [];
+  const cognitos  = ctx.byResourceType?.["Cognito"]        || [];
+  const sfns      = ctx.byResourceType?.["StepFunctions"]  || [];
 
   return (
     <div style={{ minWidth: 520, overflowX: "auto" }}>
@@ -470,6 +472,40 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
             { text: n.data.config?.api_type,               width: "80px",  dim: true },
             { text: n.data.config?.stage_name || "—",      width: "80px",  dim: true },
             { text: n.data.config?.throttling_rate ? n.data.config.throttling_rate + " r/s" : "⚠ none", width: "auto", dim: !!n.data.config?.throttling_rate },
+          ]} />
+        ))}
+      </>}
+
+      {sfns.length > 0 && <>
+        <SectionHeader title="Step Functions" />
+        <TableHeader cols={[
+          { text: "Name",    width: "160px" },
+          { text: "Type",    width: "80px"  },
+          { text: "Logging", width: "70px"  },
+          { text: "Tracing", width: "auto"  },
+        ]} />
+        {sfns.map((n) => (
+          <Row key={n.id} cols={[
+            { text: n.data.label,                                   width: "160px" },
+            { text: n.data.config?.type || "—",                     width: "80px",  dim: true },
+            { text: n.data.config?.logging_level || "⚠ OFF",        width: "70px",  dim: n.data.config?.logging_level && n.data.config.logging_level !== "OFF" },
+            { text: n.data.config?.tracing_enabled === "true" ? "X-Ray" : "off", width: "auto", dim: n.data.config?.tracing_enabled !== "true" },
+          ]} />
+        ))}
+      </>}
+
+      {cognitos.length > 0 && <>
+        <SectionHeader title="Cognito User Pools" />
+        <TableHeader cols={[
+          { text: "Name",  width: "160px" },
+          { text: "MFA",   width: "80px"  },
+          { text: "Verify", width: "auto" },
+        ]} />
+        {cognitos.map((n) => (
+          <Row key={n.id} cols={[
+            { text: n.data.label,                               width: "160px" },
+            { text: n.data.config?.mfa_configuration || "—",   width: "80px",  dim: n.data.config?.mfa_configuration !== "ON" },
+            { text: n.data.config?.auto_verified_attributes || "—", width: "auto", dim: true },
           ]} />
         ))}
       </>}

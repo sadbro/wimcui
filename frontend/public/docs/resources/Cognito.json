@@ -1,0 +1,104 @@
+{
+  "type": "Cognito",
+  "title": "Cognito User Pool",
+  "description": "Cognito User Pools handle user registration, authentication, and token management. They sit in front of API Gateway or ALB as an authorizer, and can invoke Lambda functions at key lifecycle events (sign-up, confirmation, login).",
+  "connections": {
+    "parents": [],
+    "trafficSources": [],
+    "trafficTargets": [],
+    "associations": ["Lambda", "APIGateway"]
+  },
+  "practices": [
+    "Enable MFA (at least OPTIONAL) for any pool used in production — SMS or TOTP both work.",
+    "Always auto-verify email or phone — unverified attributes mean users can sign in with addresses they don't own.",
+    "Use Lambda triggers for post-confirmation (welcome emails) and pre-token-generation (add custom claims) rather than building these into your app.",
+    "Cognito User Pool Client credentials should never be embedded in server-side code — use the server-side auth flow (USER_PASSWORD_AUTH) only from trusted backends.",
+    "The User Pool and User Pool Client are separate resources in Terraform — one pool can have multiple clients (web app, mobile app, server).",
+    "Cognito is a regional service — for global apps, combine with CloudFront and edge Lambda@Edge for token validation."
+  ],
+  "configNotes": [
+    "One Cognito node represents one aws_cognito_user_pool. The User Pool Client (aws_cognito_user_pool_client) is a dependent resource — configure its OAuth settings separately in Terraform.",
+    "MFA requires SNS for SMS delivery — factor in SNS costs for large user bases.",
+    "auto_verified_attributes controls which attributes Cognito will send verification codes for on sign-up.",
+    "Password policy is enforced at the pool level — all users in the pool share the same policy."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "type": "resourceNode",
+        "position": { "x": 387.84593782012684, "y": 278.5606932964756 },
+        "data": {
+          "resourceType": "Cognito",
+          "label": "User Pool",
+          "config": {
+            "name": "app-user-pool",
+            "mfa_configuration": "OPTIONAL",
+            "auto_verified_attributes": "email",
+            "password_minimum_length": "8",
+            "password_require_uppercase": "true",
+            "password_require_numbers": "true",
+            "password_require_symbols": "false"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "type": "resourceNode",
+        "position": { "x": 389.2514728252488, "y": 74.46937932389204 },
+        "data": {
+          "resourceType": "APIGateway",
+          "label": "Items API",
+          "config": {
+            "name": "items-api",
+            "api_name": "items-api",
+            "api_type": "REST",
+            "stage_name": "prod"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "type": "resourceNode",
+        "position": { "x": 382.92656530219983, "y": 474.05535005122033 },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "Post Confirm",
+          "config": {
+            "name": "post-confirm-trigger",
+            "runtime": "nodejs20.x",
+            "handler": "index.handler",
+            "memory_size": "128",
+            "timeout": "10",
+            "iam_role_id": "role-lambda-n3"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "type": "association",
+        "source": "n2",
+        "target": "n1"
+      },
+      {
+        "id": "e2",
+        "type": "association",
+        "source": "n1",
+        "target": "n3"
+      }
+    ],
+    "version": 2,
+    "securityGroups": [],
+    "roles": [
+      {
+        "id": "role-lambda-n3",
+        "name": "post-confirm-exec-role",
+        "policies": [
+          "AWSLambdaBasicExecutionRole"
+        ]
+      }
+    ]
+  }
+}

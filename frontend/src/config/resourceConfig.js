@@ -1488,6 +1488,114 @@ export const resourceFields = {
     },
     ...baseFields,
   ],
+
+  // ─── Step Functions ──────────────────────────────────────────────────────────
+  StepFunctions: [
+    {
+      key: "iam_role_id",
+      label: "Execution Role",
+      type: "iam-role-select",
+    },
+    {
+      key: "type",
+      label: "State Machine Type",
+      type: "select",
+      options: ["STANDARD", "EXPRESS"],
+      optionLabels: {
+        STANDARD: "Standard — exactly-once, durable, up to 1 year, full execution history",
+        EXPRESS:  "Express — at-least-once, up to 5 min, high throughput, cheaper",
+      },
+      required: true,
+    },
+    {
+      key: "logging_level",
+      label: "Logging Level",
+      type: "select",
+      options: ["OFF", "ERROR", "FATAL", "ALL"],
+      optionLabels: {
+        OFF:   "Off — no CloudWatch logging",
+        ERROR: "Error — log failed executions only",
+        FATAL: "Fatal — log only fatal errors",
+        ALL:   "All — log every state transition",
+      },
+      required: false,
+    },
+    {
+      key: "tracing_enabled",
+      label: "X-Ray Tracing",
+      type: "select",
+      options: ["false", "true"],
+      optionLabels: { false: "Disabled", true: "Enabled" },
+      required: false,
+    },
+    ...baseFields,
+  ],
+
+  // ─── Cognito ────────────────────────────────────────────────────────────────
+  Cognito: [
+    {
+      key: "mfa_configuration",
+      label: "MFA",
+      type: "select",
+      options: ["OFF", "OPTIONAL", "ON"],
+      optionLabels: {
+        OFF:      "Off — no MFA",
+        OPTIONAL: "Optional — users can enable MFA",
+        ON:       "Required — all users must use MFA",
+      },
+      required: true,
+    },
+    {
+      key: "auto_verified_attributes",
+      label: "Auto-Verify",
+      type: "select",
+      options: ["email", "phone_number", "email,phone_number"],
+      optionLabels: {
+        "email":                "Email",
+        "phone_number":         "Phone number",
+        "email,phone_number":   "Email and phone",
+      },
+      required: false,
+    },
+    {
+      key: "password_minimum_length",
+      label: "Min Password Length",
+      type: "text",
+      placeholder: "8",
+      required: false,
+      validate: (value) => {
+        if (!value) return null;
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 6 || n > 99) return "Password length must be between 6 and 99";
+        return null;
+      },
+    },
+    {
+      key: "password_require_uppercase",
+      label: "Require Uppercase",
+      type: "select",
+      options: ["true", "false"],
+      optionLabels: { true: "Yes", false: "No" },
+      required: false,
+    },
+    {
+      key: "password_require_numbers",
+      label: "Require Numbers",
+      type: "select",
+      options: ["true", "false"],
+      optionLabels: { true: "Yes", false: "No" },
+      required: false,
+    },
+    {
+      key: "password_require_symbols",
+      label: "Require Symbols",
+      type: "select",
+      options: ["true", "false"],
+      optionLabels: { true: "Yes", false: "No" },
+      required: false,
+    },
+    ...baseFields,
+  ],
 };
 
 export const hasConfig = (type) => !!resourceFields[type];

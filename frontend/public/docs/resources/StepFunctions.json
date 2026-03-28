@@ -1,0 +1,174 @@
+{
+  "type": "StepFunctions",
+  "title": "Step Functions",
+  "description": "Step Functions is a serverless orchestrator that sequences calls to AWS services using a state machine. It handles retries, error catching, parallel execution, and long-running workflows — all without writing orchestration code in your application.",
+  "connections": {
+    "parents": [],
+    "trafficSources": [],
+    "trafficTargets": [],
+    "associations": ["Lambda", "ECS", "SQS", "DynamoDB", "SNS"]
+  },
+  "practices": [
+    "Use STANDARD type for critical business workflows (orders, payments, onboarding) — exactly-once execution and full execution history are worth the cost.",
+    "Use EXPRESS type for high-volume, short-lived workloads (stream processing, IoT events) where at-least-once is acceptable and cost matters.",
+    "Always enable CloudWatch logging on EXPRESS machines — they have no built-in execution history, so logging is your only debuggability.",
+    "Prefer SDK integrations (optimistic) over Lambda wrappers for simple DynamoDB or SQS calls — removes an unnecessary Lambda invocation and reduces latency.",
+    "Design for idempotency in every task — Step Functions can retry tasks on failure, so each Lambda or ECS task must tolerate duplicate calls.",
+    "Use Wait for Callback (.waitForTaskToken) for human approval steps — the state machine pauses cheaply until the callback arrives, without polling."
+  ],
+  "configNotes": [
+    "The state machine definition (Amazon States Language JSON) lives in your Terraform — WIMCUI models the orchestration topology via association edges, not the definition.",
+    "The execution role needs permissions for every service the state machine invokes — Lambda:InvokeFunction, ECS:RunTask, SQS:SendMessage, etc.",
+    "STANDARD executions are charged per state transition (~$0.000025/transition). EXPRESS are charged per execution duration.",
+    "Tracing (X-Ray) adds end-to-end visibility across all invoked services — recommended for production workflows."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "type": "resourceNode",
+        "position": { "x": 400, "y": 0 },
+        "data": {
+          "resourceType": "EventBridge",
+          "label": "Order Events",
+          "config": {
+            "name": "order-events-bus",
+            "bus_name": "order-events"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "type": "resourceNode",
+        "position": { "x": 390, "y": 140 },
+        "data": {
+          "resourceType": "StepFunctions",
+          "label": "Order Pipeline",
+          "config": {
+            "name": "order-fulfillment",
+            "type": "STANDARD",
+            "logging_level": "ERROR",
+            "tracing_enabled": "true",
+            "iam_role_id": "role-sfn-n2"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "type": "resourceNode",
+        "position": { "x": 0, "y": 320 },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "Validate Order",
+          "config": {
+            "name": "validate-order",
+            "runtime": "python3.12",
+            "handler": "index.handler",
+            "memory_size": "256",
+            "timeout": "30",
+            "iam_role_id": "role-lambda-n3"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "type": "resourceNode",
+        "position": { "x": 200, "y": 320 },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "Process Payment",
+          "config": {
+            "name": "process-payment",
+            "runtime": "python3.12",
+            "handler": "index.handler",
+            "memory_size": "512",
+            "timeout": "60",
+            "iam_role_id": "role-lambda-n4"
+          }
+        }
+      },
+      {
+        "id": "n5",
+        "type": "resourceNode",
+        "position": { "x": 400, "y": 320 },
+        "data": {
+          "resourceType": "SQS",
+          "label": "Fulfillment Queue",
+          "config": {
+            "name": "fulfillment-queue",
+            "queue_name": "fulfillment-queue",
+            "fifo": "false",
+            "visibility_timeout": "300"
+          }
+        }
+      },
+      {
+        "id": "n6",
+        "type": "resourceNode",
+        "position": { "x": 600, "y": 320 },
+        "data": {
+          "resourceType": "DynamoDB",
+          "label": "Orders Table",
+          "config": {
+            "name": "orders-table",
+            "table_name": "orders",
+            "billing_mode": "PAY_PER_REQUEST",
+            "hash_key": "orderId",
+            "hash_key_type": "S",
+            "point_in_time_recovery": "true"
+          }
+        }
+      },
+      {
+        "id": "n7",
+        "type": "resourceNode",
+        "position": { "x": 800, "y": 320 },
+        "data": {
+          "resourceType": "SNS",
+          "label": "Customer Notify",
+          "config": {
+            "name": "customer-notifications",
+            "topic_name": "customer-notifications",
+            "fifo": "false"
+          }
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "type": "association", "source": "n1", "target": "n2" },
+      { "id": "e2", "type": "association", "source": "n2", "target": "n3" },
+      { "id": "e3", "type": "association", "source": "n2", "target": "n4" },
+      { "id": "e4", "type": "association", "source": "n2", "target": "n5" },
+      { "id": "e5", "type": "association", "source": "n2", "target": "n6" },
+      { "id": "e6", "type": "association", "source": "n2", "target": "n7" }
+    ],
+    "version": 2,
+    "securityGroups": [],
+    "roles": [
+      {
+        "id": "role-sfn-n2",
+        "name": "order-pipeline-exec-role",
+        "policies": [
+          "AWSLambdaRole",
+          "AmazonSQSFullAccess",
+          "AmazonDynamoDBFullAccess",
+          "AmazonSNSFullAccess"
+        ]
+      },
+      {
+        "id": "role-lambda-n3",
+        "name": "validate-order-exec-role",
+        "policies": [
+          "AWSLambdaBasicExecutionRole"
+        ]
+      },
+      {
+        "id": "role-lambda-n4",
+        "name": "process-payment-exec-role",
+        "policies": [
+          "AWSLambdaBasicExecutionRole"
+        ]
+      }
+    ]
+  }
+}

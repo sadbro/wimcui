@@ -136,7 +136,7 @@ const AppSyncIcon            = _svc("AWSAppSync.svg");
 
 // ─── Security & Identity ──────────────────────────────────────────────────────
 const IAMIcon                = _svc("AWSIAM.svg");
-const CognitoIcon            = _ice("Amazon-Cognito.svg");          // name varies across versions
+const CognitoIcon            = _svc("AmazonCognito.svg");
 const SecretsManagerIcon     = _svc("AWSSecretsManager.svg");
 const KMSIcon                = _svc("AWSKMS.svg");
 const WAFIcon                = _svc("AWSWAF.svg");

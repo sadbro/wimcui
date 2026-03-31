@@ -84,7 +84,7 @@ const NetworkFirewallIcon    = _svc("AWSNetworkFirewall.svg");
 // ─── Compute ─────────────────────────────────────────────────────────────────
 const EC2Icon                = _svc("AmazonEC2.svg");
 const ECSIcon                = _svc("AmazonElasticContainerService.svg");
-const EKSIcon                = _svc("AmazonEKS.svg");
+const EKSIcon                = _svc("AmazonElasticKubernetesService.svg");
 const LambdaIcon             = _svc("AWSLambda.svg");
 const FargateIcon            = _svc("AWSFargate.svg");
 const BatchIcon              = _svc("AWSBatch.svg");
@@ -236,7 +236,9 @@ export const RESOURCE_ICONS = {
   // ── Compute ─────────────────────────────────────────────────────────────
   EC2:                  EC2Icon,              // _svc  AmazonEC2.svg
   ECS:                  ECSIcon,              // _svc  AmazonECS.svg
-  EKS:                  EKSIcon,              // _svc  AmazonEKS.svg
+  EKS:                  EKSIcon,              // _svc  AmazonElasticKubernetesService.svg
+  EKSCluster:           EKSIcon,              // _svc  AmazonElasticKubernetesService.svg
+  EKSNodeGroup:         EKSIcon,              // _svc  AmazonElasticKubernetesService.svg
   Lambda:               LambdaIcon,           // _svc  AWSLambda.svg
   Fargate:              FargateIcon,          // _svc  AWSFargate.svg
   Batch:                BatchIcon,            // _svc  AWSBatch.svg

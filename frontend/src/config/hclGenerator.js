@@ -1,11 +1,11 @@
 /**
  * HCL Generator — converts canvas context to Terraform HCL.
  *
- * Covers all 22 resource types in the registry:
+ * Covers 25 of 27 resource types (Cognito and StepFunctions have no generator yet):
  *   Network:  VPC, Subnet, IGW, NATGateway, RouteTable
- *   Compute:  EC2, RDS, LoadBalancer, ECS, ElastiCache
+ *   Compute:  EC2, RDS, LoadBalancer, ECS, ElastiCache, ASG, EKSCluster, EKSNodeGroup
  *   Global:   S3, Lambda, DynamoDB, SQS, SNS, EventBridge, SecretsManager,
- *             APIGateway, ECR, Route53, Kinesis
+ *             APIGateway, ECR, Route53, Kinesis, ACM, CloudFront, WAF
  *   Cross-cutting: Security Groups, IAM Roles
  *
  * Entry point: generateHCL(ctx, region) → string
@@ -188,6 +188,8 @@ const TF_TYPE_MAP = {
   CloudFront:     "aws_cloudfront_distribution",
   WAF:            "aws_wafv2_web_acl",
   ASG:            "aws_autoscaling_group",
+  EKSCluster:     "aws_eks_cluster",
+  EKSNodeGroup:   "aws_eks_node_group",
 };
 
 // ─── Per-Resource Generators ─────────────────────────────────────────────────
@@ -1216,6 +1218,96 @@ const generators = {
     });
     return blocks;
   },
+
+  // ─── EKSCluster ──────────────────────────────────────────────────────────
+  EKSCluster(nodes, names, ctx, warnings) {
+    const blocks = [];
+    nodes.forEach((n) => {
+      const cfg = n.data?.config || {};
+      const name = names[n.id];
+      const r = createRefResolver(names, warnings, n.data?.label || name);
+
+      const subnetRefs = r.list("aws_subnet", cfg.subnets, "id");
+      const sgRefs = (cfg.sg_ids || [])
+        .map((id) => (names[id] ? `aws_security_group.${names[id]}.id` : null))
+        .filter(Boolean);
+      const roleRef = cfg.iam_role_id ? r.ref("aws_iam_role", cfg.iam_role_id, "arn") : null;
+
+      // enabled_cluster_log_types stored as comma-string ("api,audit") or "none"
+      const logTypesRaw = cfg.enabled_cluster_log_types;
+      const logTypes = (!logTypesRaw || logTypesRaw === "none")
+        ? []
+        : logTypesRaw.split(",").map((s) => s.trim()).filter(Boolean);
+
+      blocks.push(block("aws_eks_cluster", name, name, [
+        attr("name", cfg.name || n.data?.label),
+        roleRef ? rawAttr("role_arn", roleRef) : comment("WARNING: no IAM role assigned — role_arn is required"),
+        cfg.kubernetes_version ? attr("version", cfg.kubernetes_version) : null,
+        "",
+        innerBlock("vpc_config", [
+          subnetRefs.length > 0
+            ? `    subnet_ids = [${subnetRefs.join(", ")}]`
+            : comment("WARNING: no subnets assigned — at least 2 subnets required", 2),
+          sgRefs.length > 0
+            ? `    security_group_ids = [${sgRefs.join(", ")}]`
+            : null,
+          boolAttr("endpoint_private_access", cfg.endpoint_private_access || "true", 2),
+          boolAttr("endpoint_public_access", cfg.endpoint_public_access || "false", 2),
+        ]),
+        "",
+        logTypes.length > 0 ? listAttr("enabled_cluster_log_types", logTypes) : null,
+        "",
+        mapBlock("tags", [
+          attr("Name", cfg.name || n.data?.label, 2),
+        ]),
+      ]));
+    });
+    return blocks;
+  },
+
+  // ─── EKSNodeGroup ────────────────────────────────────────────────────────
+  EKSNodeGroup(nodes, names, ctx, warnings) {
+    const blocks = [];
+    nodes.forEach((n) => {
+      const cfg = n.data?.config || {};
+      const name = names[n.id];
+      const r = createRefResolver(names, warnings, n.data?.label || name);
+
+      const clusterRef = cfg.parentNodeId ? r.ref("aws_eks_cluster", cfg.parentNodeId, "name") : null;
+      const subnetRefs = r.list("aws_subnet", cfg.subnets, "id");
+      const sgRefs = (cfg.sg_ids || [])
+        .map((id) => (names[id] ? `aws_security_group.${names[id]}.id` : null))
+        .filter(Boolean);
+      const roleRef = cfg.iam_role_id ? r.ref("aws_iam_role", cfg.iam_role_id, "arn") : null;
+
+      blocks.push(block("aws_eks_node_group", name, name, [
+        attr("node_group_name", cfg.name || n.data?.label),
+        clusterRef ? rawAttr("cluster_name", clusterRef) : comment("WARNING: no EKS Cluster linked"),
+        roleRef ? rawAttr("node_role_arn", roleRef) : comment("WARNING: no IAM role assigned — node_role_arn is required"),
+        "",
+        subnetRefs.length > 0
+          ? `  subnet_ids = [${subnetRefs.join(", ")}]`
+          : comment("WARNING: no subnets assigned"),
+        "",
+        // instance_types is always a list in the AWS provider
+        `  instance_types = ["${cfg.instance_type || "t3.medium"}"]`,
+        cfg.ami_type ? attr("ami_type", cfg.ami_type) : null,
+        cfg.disk_size ? numAttr("disk_size", cfg.disk_size) : null,
+        "",
+        innerBlock("scaling_config", [
+          numAttr("min_size",     cfg.min_size     || "1", 2),
+          numAttr("max_size",     cfg.max_size     || "3", 2),
+          numAttr("desired_size", cfg.desired_size || "2", 2),
+        ]),
+        "",
+        mapBlock("tags", [
+          attr("Name", cfg.name || n.data?.label, 2),
+        ]),
+      ]));
+    });
+    return blocks;
+  },
+
 };
 
 // ─── Security Group Generator ────────────────────────────────────────────────
@@ -1422,6 +1514,8 @@ const GENERATION_ORDER = [
   "CloudFront",
   "WAF",
   "ASG",
+  "EKSCluster",
+  "EKSNodeGroup",
 ];
 
 // ─── Main Entry Point ────────────────────────────────────────────────────────

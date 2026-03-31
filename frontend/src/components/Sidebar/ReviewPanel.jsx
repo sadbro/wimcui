@@ -96,6 +96,8 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
   const apigws   = ctx.byResourceType?.["APIGateway"]     || [];
   const cognitos  = ctx.byResourceType?.["Cognito"]        || [];
   const sfns      = ctx.byResourceType?.["StepFunctions"]  || [];
+  const eksClusters  = ctx.byResourceType?.["EKSCluster"]  || [];
+  const eksNodeGroups = ctx.byResourceType?.["EKSNodeGroup"] || [];
 
   return (
     <div style={{ minWidth: 520, overflowX: "auto" }}>
@@ -493,6 +495,44 @@ function SummaryTab({ ctx, roles = [], securityGroups = [] }) {
           ]} />
         ))}
       </>}
+
+{(eksClusters.length > 0 || eksNodeGroups.length > 0) && <>
+  <SectionHeader title="EKS" />
+  {eksClusters.length > 0 && <>
+    <TableHeader cols={[
+      { text: "Cluster",   width: "160px" },
+      { text: "K8s Ver",   width: "70px"  },
+      { text: "Priv EP",   width: "60px"  },
+      { text: "Logs",      width: "auto"  },
+    ]} />
+    {eksClusters.map((n) => (
+      <Row key={n.id} cols={[
+        { text: n.data.label,                                                        width: "160px" },
+        { text: n.data.config?.kubernetes_version || "—",                            width: "70px",  dim: true },
+        { text: n.data.config?.endpoint_private_access === "true" ? "yes" : "no",   width: "60px",  dim: n.data.config?.endpoint_private_access !== "true" },
+        { text: n.data.config?.enabled_cluster_log_types || "none",                 width: "auto",  dim: !n.data.config?.enabled_cluster_log_types || n.data.config.enabled_cluster_log_types === "none" },
+      ]} />
+    ))}
+  </>}
+  {eksNodeGroups.length > 0 && <>
+    <TableHeader cols={[
+      { text: "Node Group",  width: "160px" },
+      { text: "Instance",    width: "100px" },
+      { text: "Min",         width: "40px"  },
+      { text: "Max",         width: "40px"  },
+      { text: "Desired",     width: "auto"  },
+    ]} />
+    {eksNodeGroups.map((n) => (
+      <Row key={n.id} cols={[
+        { text: n.data.label,                          width: "160px" },
+        { text: n.data.config?.instance_type || "—",  width: "100px", dim: true },
+        { text: n.data.config?.min_size     || "—",   width: "40px",  dim: true },
+        { text: n.data.config?.max_size     || "—",   width: "40px",  dim: true },
+        { text: n.data.config?.desired_size || "—",   width: "auto",  dim: true },
+      ]} />
+    ))}
+  </>}
+</>}
 
       {cognitos.length > 0 && <>
         <SectionHeader title="Cognito User Pools" />
@@ -957,6 +997,33 @@ function buildHclChecks(ctx) {
     if (!cfg.instance_type?.trim())
       checks.push({ ok: false, warn: false, message: `${n.data.label} is missing an instance type` });
     if (!cfg.min_size || !cfg.max_size || !cfg.desired_capacity)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing scaling parameters (min/max/desired)` });
+  });
+
+  // ─── EKS hard fails ──────────────────────────────────────────────────────
+  const eksClustersFails = ctx.byResourceType?.["EKSCluster"] || [];
+  eksClustersFails.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.name?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a name` });
+    if (!cfg.kubernetes_version)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing Kubernetes version` });
+    if ((cfg.subnets || []).length < 2)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} needs at least 2 subnets — required for EKS control plane HA` });
+  });
+
+  const eksNodeGroupsFails = ctx.byResourceType?.["EKSNodeGroup"] || [];
+  eksNodeGroupsFails.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.name?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a name` });
+    if (!cfg.parentNodeId)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is not linked to an EKS Cluster` });
+    if (!(cfg.subnets || []).length)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} has no subnets` });
+    if (!cfg.instance_type)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing an instance type` });
+    if (!cfg.min_size || !cfg.max_size || !cfg.desired_size)
       checks.push({ ok: false, warn: false, message: `${n.data.label} is missing scaling parameters (min/max/desired)` });
   });
 

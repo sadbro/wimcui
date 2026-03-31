@@ -177,6 +177,12 @@
         "type": "structural"
       },
       {
+        "id": "e3b",
+        "source": "n3",
+        "target": "n4",
+        "type": "structural"
+      },
+      {
         "id": "e4",
         "source": "n2",
         "target": "n5",

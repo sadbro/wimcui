@@ -34,6 +34,9 @@ export const trafficRules = {
   RouteTable:   null,
   VPC:          null,
   Subnet:       null,
+  // ── Kubernetes ───────────────────────────────────────────────────────────
+  EKSCluster:   { allowedSources: ["LoadBalancer", "EKSNodeGroup"],                                                  allowedTargets: ["EKSNodeGroup"] },
+  EKSNodeGroup: { allowedSources: ["EKSCluster"],                                                                    allowedTargets: ["EKSCluster", "RDS", "ElastiCache"] },
   // ── Auto Scaling ─────────────────────────────────────────────────────────
   ASG:          { allowedSources: ["LoadBalancer", "Public", "Route53"],                                              allowedTargets: ["RDS", "ElastiCache", "EC2", "Kinesis"] },
   // Global services — accessed via IAM, not network traffic edges

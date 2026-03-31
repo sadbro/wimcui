@@ -26,7 +26,9 @@
     { "key": "CloudFront", "title": "CloudFront", "summary": "Global CDN" },
     { "key": "WAF", "title": "WAF", "summary": "Web application firewall" },
     { "key": "Cognito", "title": "Cognito User Pool", "summary": "User authentication and authorization" },
-    { "key": "StepFunctions", "title": "Step Functions", "summary": "Serverless workflow orchestration" }
+    { "key": "StepFunctions", "title": "Step Functions", "summary": "Serverless workflow orchestration" },
+    { "key": "EKSCluster", "title": "EKS Cluster", "summary": "Managed Kubernetes control plane" },
+    { "key": "EKSNodeGroup", "title": "EKS Node Group", "summary": "Worker EC2 fleet for an EKS cluster" }
   ],
   "groups": [
     { "key": "public-web-server", "title": "Public Web Server", "summary": "Internet-facing EC2 with VPC, subnet, IGW, and security group", "group": true },

@@ -16,14 +16,15 @@ The name is intentional. It answers the question architects ask when staring at 
 
 ### Canvas and Resources
 
-* Drag-and-drop placement of 25 AWS resource types:
+* Drag-and-drop placement of 27 AWS resource types:
   * **Network**: VPC, Subnet, Internet Gateway, NAT Gateway, Route Table
-  * **Compute**: EC2, ECS, Lambda, Auto Scaling Group
+  * **Compute**: EC2, ECS, Lambda, Auto Scaling Group, EKS Cluster, EKS Node Group
   * **Database**: RDS, DynamoDB, ElastiCache
   * **Load Balancing**: Application/Network Load Balancer
   * **Storage**: S3, ECR
   * **Messaging**: SQS, SNS, EventBridge, Kinesis
-  * **Security**: SecretsManager, WAF, ACM
+  * **Security**: SecretsManager, WAF, ACM, Cognito
+  * **Orchestration**: Step Functions
   * **CDN**: CloudFront
   * **DNS**: Route53
 * Structural edges that model parent-child relationships (VPC contains Subnet, Subnet contains EC2)
@@ -43,11 +44,11 @@ The name is intentional. It answers the question architects ask when staring at 
 
 * Consequence engine: 120+ rules that flag availability, security, cost, and configuration issues in real time
 * HCL Readiness checks: hard fail validations that block generation until the canvas is valid
-* Per-resource-type checks for all 26 resource types
+* Per-resource-type checks for all 27 resource types
 
 ### HCL Generation and Terraform Validation
 
-* Full Terraform HCL generation covering all 25 resource types, Security Groups, and IAM Roles
+* Full Terraform HCL generation covering all 27 resource types, Security Groups, and IAM Roles
 * Safe reference resolution: broken references produce `# WARNING:` comments and collected warnings instead of `undefined` in output
 * Reverse name map: maps Terraform resource names back to canvas node IDs for error mapping
 * Dual-mode Terraform validation:
@@ -86,7 +87,7 @@ Three group examples are also available (Public Web Server, Classic 3-Tier App, 
 
 * Multi-region canvases — one region per canvas
 * Importing existing Terraform or CloudFormation into the canvas
-* Additional resources: VPC Endpoints, Cognito, VPC Peering, EFS, EKS
+* Additional resources: VPC Endpoints, VPC Peering, EFS
 * Blueprints: saved, shareable, parameterized architecture templates (planned)
 
 ---
@@ -128,9 +129,9 @@ wimcui/
 │   │   │       ├── ReviewPanel.jsx      # Consequence rules, HCL readiness, validation UI
 │   │   │       └── RoleManager.jsx
 │   │   ├── config/
-│   │   │   ├── resourceRegistry.js      # 25 resource type definitions
+│   │   │   ├── resourceRegistry.js      # 27 resource type definitions
 │   │   │   ├── resourceConfig.js        # Per-type field definitions
-│   │   │   ├── hclGenerator.js          # Full HCL generator (all 25 types + SGs + IAM)
+│   │   │   ├── hclGenerator.js          # Full HCL generator (all 27 types + SGs + IAM)
 │   │   │   ├── canvasContext.js          # buildContext() — derived state from canvas
 │   │   │   ├── consequenceRules.js      # Warning-level validation rules
 │   │   │   ├── trafficRules.js          # Traffic edge validation
@@ -147,7 +148,7 @@ wimcui/
 │   ├── public/
 │   │   └── docs/
 │   │       ├── index.json                   # Resource and group manifest
-│   │       ├── resources/                   # 25 per-resource doc + example JSONs
+│   │       ├── resources/                   # 27 per-resource doc + example JSONs
 │   │       └── groups/                      # 3 group architecture example JSONs
 │   ├── index.html
 │   ├── package.json
@@ -242,7 +243,7 @@ The Review Canvas panel runs all consequence rules against the current canvas st
 
 ### HCL Generation
 
-The HCL Readiness tab validates readiness, generates Terraform HCL for all canvas resources, and provides copy/download/validate actions. The generator covers all 26 resource types plus Security Groups and IAM Roles with dependency-ordered output.
+The HCL Readiness tab validates readiness, generates Terraform HCL for all canvas resources, and provides copy/download/validate actions. The generator covers all 27 resource types plus Security Groups and IAM Roles with dependency-ordered output.
 
 ### Terraform Validation
 

@@ -206,6 +206,26 @@ export const RESOURCE_REGISTRY = {
     sgCapable:   false,
     iamCapable:  false,
   },
+  // ─── Kubernetes ─────────────────────────────────────────────────────────────
+  EKSCluster: {
+    label:            "EKS Cluster",
+    color:            "#f47321",
+    category:         "compute",
+    defaultSize:      { width: 180, height: 60 },
+    sgCapable:        true,
+    iamCapable:       true,
+    atomicDrop:       true,          // spawns EKSNodeGroup on drop
+    atomicDropTarget: "EKSNodeGroup",
+  },
+  EKSNodeGroup: {
+    label:       "EKS Node Group",
+    color:       "#f47321",
+    category:    "compute",
+    defaultSize: { width: 180, height: 60 },
+    sgCapable:   true,
+    iamCapable:  true,
+    dependentOf: "EKSCluster",       // cascade-deleted when parent cluster is deleted
+  },
   // ─── Compute (scaling) ─────────────────────────────────────────────────────
   ASG: {
     label:       "Auto Scaling Group",

@@ -8,9 +8,9 @@
 export const LAYERS = {
   all:      { label: "All",      resourceTypes: null, edgeTypes: null },
   network:  { label: "Network",  resourceTypes: ["VPC", "Subnet", "IGW", "NATGateway", "RouteTable", "Route53"], edgeTypes: ["structural", "association"] },
-  compute:  { label: "Compute",  resourceTypes: ["EC2", "ECS", "Lambda", "LoadBalancer", "ASG"], edgeTypes: ["traffic"] },
+  compute:  { label: "Compute",  resourceTypes: ["EC2", "ECS", "Lambda", "LoadBalancer", "ASG", "EKSCluster", "EKSNodeGroup"], edgeTypes: ["traffic"] },
   data:     { label: "Data",     resourceTypes: ["RDS", "DynamoDB", "ElastiCache", "S3"], edgeTypes: ["traffic"] },
-  services: { label: "Services", resourceTypes: ["SQS", "SNS", "EventBridge", "Kinesis", "SecretsManager", "ECR", "APIGateway", "ACM", "CloudFront", "WAF"], edgeTypes: ["association"] },
+  services: { label: "Services", resourceTypes: ["SQS", "SNS", "EventBridge", "Kinesis", "SecretsManager", "ECR", "APIGateway", "ACM", "CloudFront", "WAF", "Cognito", "StepFunctions"], edgeTypes: ["association"] },
 };
 
 export const LAYER_ORDER = ["all", "network", "compute", "data", "services"];

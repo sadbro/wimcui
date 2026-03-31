@@ -45,13 +45,14 @@ export const resourceFields = {
       required: true,
     },
     {
-      key: "ami",
-      label: "AMI ID",
-      type: "text",
-      placeholder: "ami-0c55b159cbfafe1f0",
+      key:      "ami",
+      label:    "AMI",
+      type:     "ami-select",
       required: true,
       validate: (value) => {
-        if (!/^ami-[a-f0-9]{8,17}$/.test(value)) return "Invalid AMI ID format (e.g. ami-0c55b159cbfafe1f0)";
+        if (!value) return "AMI is required";
+        if (value.startsWith("/aws/service/")) return null;
+        if (!/^ami-[a-f0-9]{8,17}$/.test(value)) return "Enter a valid AMI ID (ami-...) or select a preset above";
         return null;
       },
     },
@@ -1404,14 +1405,14 @@ export const resourceFields = {
       parentType: "Subnet",
     },
     {
-      key: "ami",
-      label: "AMI ID",
-      type: "text",
-      placeholder: "ami-0c55b159cbfafe1f0",
+      key:      "ami",
+      label:    "AMI",
+      type:     "ami-select",
       required: true,
       validate: (value) => {
-        if (!value?.trim()) return "AMI is required";
-        if (!/^ami-[a-f0-9]{8,17}$/.test(value)) return "Invalid AMI format (e.g. ami-0c55b159...)";
+        if (!value) return "AMI is required";
+        if (value.startsWith("/aws/service/")) return null;
+        if (!/^ami-[a-f0-9]{8,17}$/.test(value)) return "Enter a valid AMI ID (ami-...) or select a preset above";
         return null;
       },
     },
@@ -1593,6 +1594,165 @@ export const resourceFields = {
       options: ["true", "false"],
       optionLabels: { true: "Yes", false: "No" },
       required: false,
+    },
+    ...baseFields,
+  ],
+
+  // ─── EKSCluster ───────────────────────────────────────────────────────────
+  EKSCluster: [
+    {
+      key:      "subnets",
+      label:    "Subnets",
+      type:     "multi-select",
+      parentType: "Subnet",
+      minItems: 2,
+      required: true,
+    },
+    {
+      key:   "iam_role_id",
+      label: "Cluster IAM Role",
+      type:  "iam-role-select",
+    },
+    {
+      key:  "sg_ids",
+      label: "Security Groups",
+      type:  "sg-select",
+    },
+    {
+      key:      "kubernetes_version",
+      label:    "Kubernetes Version",
+      type:     "select",
+      options:  ["1.30", "1.29", "1.28", "1.27"],
+      required: true,
+    },
+    {
+      key:          "endpoint_private_access",
+      label:        "Private Endpoint",
+      type:         "select",
+      options:      ["false", "true"],
+      optionLabels: { false: "Disabled", true: "Enabled — API server accessible within VPC" },
+      required:     false,
+    },
+    {
+      key:          "endpoint_public_access",
+      label:        "Public Endpoint",
+      type:         "select",
+      options:      ["true", "false"],
+      optionLabels: { true: "Enabled — API server accessible from internet", false: "Disabled (private only)" },
+      required:     false,
+    },
+    {
+      key:          "enabled_cluster_log_types",
+      label:        "Control Plane Logs",
+      type:         "select",
+      options:      ["none", "api", "api,audit", "api,audit,authenticator,controllerManager,scheduler"],
+      optionLabels: {
+        none:                                                    "None",
+        api:                                                     "API server only",
+        "api,audit":                                             "API + Audit",
+        "api,audit,authenticator,controllerManager,scheduler":  "All log types (recommended)",
+      },
+      required: false,
+    },
+    ...baseFields,
+  ],
+
+  // ─── EKSNodeGroup ─────────────────────────────────────────────────────────
+  EKSNodeGroup: [
+    {
+      key:        "parentNodeId",
+      label:      "EKS Cluster",
+      type:       "dependent-select",
+      parentType: "EKSCluster",
+      required:   true,
+    },
+    {
+      key:      "subnets",
+      label:    "Subnets",
+      type:     "multi-select",
+      parentType: "Subnet",
+      minItems: 1,
+      required: true,
+    },
+    {
+      key:   "iam_role_id",
+      label: "Node IAM Role",
+      type:  "iam-role-select",
+    },
+    {
+      key:   "sg_ids",
+      label: "Security Groups",
+      type:  "sg-select",
+    },
+    {
+      key:      "instance_type",
+      label:    "Instance Type",
+      type:     "select",
+      options:  ["t3.medium", "t3.large", "t3.xlarge", "m5.large", "m5.xlarge", "m5.2xlarge", "c5.large", "c5.xlarge", "r5.large"],
+      required: true,
+    },
+    {
+      key:          "ami_type",
+      label:        "AMI Type",
+      type:         "select",
+      options:      ["AL2_x86_64", "AL2_ARM_64", "AL2_x86_64_GPU", "BOTTLEROCKET_x86_64", "BOTTLEROCKET_ARM_64"],
+      optionLabels: {
+        AL2_x86_64:          "Amazon Linux 2 (x86_64)",
+        AL2_ARM_64:          "Amazon Linux 2 (ARM)",
+        AL2_x86_64_GPU:      "Amazon Linux 2 GPU",
+        BOTTLEROCKET_x86_64: "Bottlerocket (x86_64)",
+        BOTTLEROCKET_ARM_64: "Bottlerocket (ARM)",
+      },
+      required: true,
+    },
+    {
+      key:       "min_size",
+      label:     "Min Nodes",
+      type:      "text",
+      placeholder: "1",
+      required:  true,
+      validate: (value) => {
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 0) return "Min size must be a non-negative integer";
+        return null;
+      },
+    },
+    {
+      key:       "max_size",
+      label:     "Max Nodes",
+      type:      "text",
+      placeholder: "3",
+      required:  true,
+      validate: (value) => {
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 1) return "Max size must be at least 1";
+        return null;
+      },
+    },
+    {
+      key:       "desired_size",
+      label:     "Desired Nodes",
+      type:      "text",
+      placeholder: "2",
+      required:  true,
+      validate: (value) => {
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 0) return "Desired size must be a non-negative integer";
+        return null;
+      },
+    },
+    {
+      key:       "disk_size",
+      label:     "Disk Size (GB)",
+      type:      "text",
+      placeholder: "20",
+      required:  false,
+      validate: (value) => {
+        if (!value) return null;
+        const n = parseInt(value, 10);
+        if (isNaN(n) || n < 1) return "Disk size must be at least 1 GB";
+        return null;
+      },
     },
     ...baseFields,
   ],

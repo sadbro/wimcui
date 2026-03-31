@@ -1,0 +1,171 @@
+{
+  "type": "EKSCluster",
+  "title": "EKS Cluster",
+  "description": "Amazon EKS is a managed Kubernetes service. You provision a cluster (the control plane) and one or more node groups (the worker EC2 fleet). EKS manages the control plane across multiple AZs — you only manage the nodes, IAM roles, and networking.",
+  "connections": {
+    "parents": [],
+    "trafficSources": ["LoadBalancer"],
+    "trafficTargets": ["EKSNodeGroup"],
+    "associations": []
+  },
+  "practices": [
+    "Always provision at least two node groups across separate AZs — one AZ failure should not take down your cluster.",
+    "Use separate IAM roles for the cluster and each node group — principle of least privilege at both layers.",
+    "Enable private endpoint access and disable public endpoint in production — the API server should not be reachable from the internet.",
+    "Attach AmazonEKSWorkerNodePolicy, AmazonEKS_CNI_Policy, and AmazonEC2ContainerRegistryReadOnly to node group roles — minimum required for nodes to join and pull images.",
+    "Enable at minimum API + Audit control plane logs — API log captures all kubectl actions, Audit captures authorization decisions.",
+    "Use Bottlerocket AMI for security-hardened nodes — minimal attack surface, immutable root FS, automatic OS updates."
+  ],
+  "configNotes": [
+    "Subnets: assign at least 2 subnets in different AZs — EKS places control plane endpoints across AZs using these subnets. Fewer than 2 blocks HCL generation.",
+    "The cluster IAM role needs AmazonEKSClusterPolicy — EKS uses it to manage EC2 and ELB resources on your behalf.",
+    "Node group IAM role needs AmazonEKSWorkerNodePolicy + AmazonEKS_CNI_Policy + AmazonEC2ContainerRegistryReadOnly at minimum.",
+    "Private endpoint requires VPC DNS enabled — without it, kubectl from within the VPC fails.",
+    "Kubernetes version on node groups must be within one minor version of the cluster — upgrade the cluster first, then node groups."
+  ],
+  "example": {
+    "version": 2,
+    "nodes": [
+      {
+        "id": "n0",
+        "type": "resourceNode",
+        "position": { "x": 100, "y": 0 },
+        "data": {
+          "resourceType": "VPC",
+          "label": "App VPC",
+          "config": { "name": "app-vpc", "cidr": "10.0.0.0/16" }
+        }
+      },
+      {
+        "id": "n0a",
+        "type": "resourceNode",
+        "position": { "x": 0, "y": 160 },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public A",
+          "config": {
+            "name": "public-a",
+            "cidr": "10.0.1.0/24",
+            "visibility": "Public",
+            "availability_zone": "us-east-1a",
+            "vpcId": "n0"
+          }
+        }
+      },
+      {
+        "id": "n0b",
+        "type": "resourceNode",
+        "position": { "x": 220, "y": 160 },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public B",
+          "config": {
+            "name": "public-b",
+            "cidr": "10.0.2.0/24",
+            "visibility": "Public",
+            "availability_zone": "us-east-1b",
+            "vpcId": "n0"
+          }
+        }
+      },
+      {
+        "id": "n1",
+        "type": "resourceNode",
+        "position": { "x": 100, "y": 340 },
+        "data": {
+          "resourceType": "LoadBalancer",
+          "label": "App LB",
+          "config": {
+            "name": "app-alb",
+            "load_balancer_type": "application",
+            "scheme": "internet-facing",
+            "subnets": ["n0a", "n0b"]
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "type": "resourceNode",
+        "position": { "x": 0, "y": 520 },
+        "data": {
+          "resourceType": "EKSCluster",
+          "label": "App Cluster",
+          "config": {
+            "name": "app-cluster",
+            "subnets": ["n0a", "n0b"],
+            "kubernetes_version": "1.30",
+            "endpoint_private_access": "true",
+            "endpoint_public_access": "false",
+            "enabled_cluster_log_types": "api,audit",
+            "iam_role_id": "role-eks-cluster"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "type": "resourceNode",
+        "position": { "x": 300, "y": 520 },
+        "data": {
+          "resourceType": "EKSNodeGroup",
+          "label": "App Nodes",
+          "config": {
+            "name": "app-nodes",
+            "parentNodeId": "n2",
+            "subnets": ["n0a", "n0b"],
+            "instance_type": "t3.large",
+            "ami_type": "AL2_x86_64",
+            "min_size": "2",
+            "max_size": "6",
+            "desired_size": "3",
+            "disk_size": "50",
+            "iam_role_id": "role-eks-nodes"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "type": "resourceNode",
+        "position": { "x": 300, "y": 700 },
+        "data": {
+          "resourceType": "RDS",
+          "label": "App DB",
+          "config": {
+            "name": "app-db",
+            "engine": "postgres",
+            "engine_version": "15.3",
+            "instance_class": "db.t3.medium",
+            "multi_az": "true",
+            "storage_encrypted": "true",
+            "subnets": ["n0a", "n0b"]
+          }
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e-sna-vpc", "type": "structural", "source": "n0", "target": "n0a", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e-snb-vpc", "type": "structural", "source": "n0", "target": "n0b", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e-sna-alb", "type": "structural", "source": "n0a", "target": "n1", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e-snb-alb", "type": "structural", "source": "n0b", "target": "n1", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e1", "type": "traffic", "source": "n1", "target": "n2", "data": { "ingress": [{ "port": "443", "protocol": "HTTPS" }], "egress": [] } },
+      { "id": "e2", "type": "traffic", "source": "n2", "target": "n3", "data": { "ingress": [{ "port": "10250", "protocol": "TCP" }], "egress": [{ "port": "443", "protocol": "HTTPS" }] } },
+      { "id": "e3", "type": "traffic", "source": "n3", "target": "n4", "data": { "ingress": [], "egress": [{ "port": "5432", "protocol": "TCP" }] } }
+    ],
+    "securityGroups": [],
+    "roles": [
+      {
+        "id": "role-eks-cluster",
+        "name": "eks-cluster-role",
+        "policies": ["AmazonEKSClusterPolicy"]
+      },
+      {
+        "id": "role-eks-nodes",
+        "name": "eks-node-role",
+        "policies": [
+          "AmazonEKSWorkerNodePolicy",
+          "AmazonEKS_CNI_Policy",
+          "AmazonEC2ContainerRegistryReadOnly"
+        ]
+      }
+    ]
+  }
+}

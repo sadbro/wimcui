@@ -328,17 +328,34 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
     onSelectionChange(selected.length === 1 ? selected[0] : null);
   }, [onSelectionChange]);
 
-  // Intercept node changes — block removal if node has children
+  // Intercept node changes — block removal if node has children; cascade for atomicDrop parents
   const handleNodesChange = useCallback((changes) => {
     const removals = changes.filter((c) => c.type === "remove");
+    const cascadeRemovals = [];
     const filteredChanges = changes.filter((change) => {
       if (change.type !== "remove") return true;
 
-      const hasChildren = nodesRef.current.some((n) =>
-        Object.values(n.data?.config || {}).includes(change.id)
-      );
+      const nodeType = nodesRef.current.find((n) => n.id === change.id)?.data?.resourceType;
 
-      if (hasChildren) {
+      // Cascade delete: atomicDrop parents (EKSCluster) auto-delete their dependents (EKSNodeGroup)
+      const cascadeSet = new Set();
+      if (RESOURCE_REGISTRY[nodeType]?.atomicDrop) {
+        nodesRef.current
+          .filter((n) => n.data?.config?.parentNodeId === change.id)
+          .forEach((n) => {
+            cascadeSet.add(n.id);
+            if (!cascadeRemovals.some((c) => c.id === n.id))
+              cascadeRemovals.push({ type: "remove", id: n.id });
+          });
+      }
+
+      // Always run the children guard — but exclude nodes already handled by cascade
+      const hasNonCascadeChildren = nodesRef.current.some((n) => {
+        if (cascadeSet.has(n.id)) return false;
+        return Object.values(n.data?.config || {}).includes(change.id);
+      });
+
+      if (hasNonCascadeChildren) {
         showToastRef.current("Cannot delete — remove all child nodes first!", true);
         return false;
       }
@@ -351,7 +368,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
       snapshotRef.current();
     }
 
-    onNodesChange(filteredChanges);
+    onNodesChange([...filteredChanges, ...cascadeRemovals]);
   }, [onNodesChange]);
 
   // Intercept edge changes — block removal of parent->child edges
@@ -452,22 +469,74 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
       setEdges((eds) => eds.concat(parentEdges));
     }
 
+    // Atomic drop: auto-spawn dependent resource (EKSCluster → EKSNodeGroup)
+    const registryEntry = RESOURCE_REGISTRY[type];
+    if (registryEntry?.atomicDrop && registryEntry?.atomicDropTarget) {
+      const depType   = registryEntry.atomicDropTarget;
+      const depConfig = {
+        parentNodeId:  newNodeId,
+        name:          `${config.name || "eks"}-nodes`,
+        instance_type: "t3.medium",
+        ami_type:      "AL2_x86_64",
+        min_size:      "1",
+        max_size:      "3",
+        desired_size:  "2",
+        disk_size:     "20",
+      };
+      const clusterLabel = config.display_name?.trim() || config.name?.trim() || type;
+      const depLabel     = depConfig.name;
+      const depNodeId    = placeNode(depType, { x: pendingDrop.position.x + 220, y: pendingDrop.position.y }, depConfig);
+
+      // Traffic edge: cluster ↔ node group (API server port 443, kubelet port 10250)
+      setEdges((eds) => eds.concat({
+        id:     `e_${newNodeId}_${depNodeId}_${Date.now()}`,
+        source: newNodeId,
+        target: depNodeId,
+        type:   "traffic",
+        data: {
+          ingress: [{ port: "10250", protocol: "TCP" }],
+          egress:  [{ port: "443",   protocol: "HTTPS" }],
+        },
+      }));
+
+      // SG auto-create for the newly spawned pair
+      setPendingSGPrompt({
+        nodes: [
+          { id: newNodeId, data: { label: clusterLabel, resourceType: type } },
+          { id: depNodeId, data: { label: depLabel,     resourceType: depType } },
+        ],
+        onSkip: () => setPendingSGPrompt(null),
+      });
+    }
+
     setPendingDrop(null);
   };
 
   const { deleteElements } = useReactFlow();
 
   const onDeleteNode = useCallback((nodeId) => {
-    // Check for children before deleting
-    const hasChildren = nodesRef.current.some((n) =>
-      Object.values(n.data?.config || {}).includes(nodeId)
-    );
-    if (hasChildren) {
+    const nodeType = nodesRef.current.find((n) => n.id === nodeId)?.data?.resourceType;
+
+    // Cascade delete: atomicDrop parents auto-delete their dependents (e.g. EKSCluster → EKSNodeGroup)
+    const cascadeIds = RESOURCE_REGISTRY[nodeType]?.atomicDrop
+      ? nodesRef.current
+          .filter((n) => n.data?.config?.parentNodeId === nodeId)
+          .map((n) => n.id)
+      : [];
+    const cascadeSet = new Set(cascadeIds);
+
+    // Always run the children guard — but exclude nodes already handled by cascade
+    const hasNonCascadeChildren = nodesRef.current.some((n) => {
+      if (cascadeSet.has(n.id)) return false;
+      return Object.values(n.data?.config || {}).includes(nodeId);
+    });
+    if (hasNonCascadeChildren) {
       showToastRef.current("Cannot delete — remove all child nodes first!", true);
       return;
     }
+
     snapshotRef.current();
-    deleteElements({ nodes: [{ id: nodeId }] });
+    deleteElements({ nodes: [{ id: nodeId }, ...cascadeIds.map((id) => ({ id }))] });
   }, [deleteElements]);
 
   const onNodeDoubleClick = useCallback((event, node) => {
@@ -774,7 +843,10 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
         return hasTraffic;
       });
       if (nodesNeedingSG.length > 0) {
-        setPendingSGPrompt(nodesNeedingSG);
+        setPendingSGPrompt({
+          nodes:  nodesNeedingSG,
+          onSkip: () => { setPendingSGPrompt(null); showToast("Canvas imported."); },
+        });
       } else if (warnings.length === 0 && publicNodes.length === 0) {
         showToast("Canvas imported.");
       }
@@ -933,9 +1005,9 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
 
       {pendingSGPrompt && (
         <SGAutoCreateModal
-          missingNodes={pendingSGPrompt}
+          missingNodes={pendingSGPrompt.nodes}
           onAutoCreate={handleAutoCreateSGs}
-          onSkip={() => { setPendingSGPrompt(null); showToast("Canvas imported."); }}
+          onSkip={pendingSGPrompt.onSkip || (() => setPendingSGPrompt(null))}
         />
       )}
 

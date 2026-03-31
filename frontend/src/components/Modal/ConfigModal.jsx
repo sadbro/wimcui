@@ -69,6 +69,62 @@ const routeInputStyle = {
   outline: "none", boxSizing: "border-box",
 };
 
+// ─── AMI Select ──────────────────────────────────────────────────────────────
+
+const AMI_PRESETS = [
+  { label: "Amazon Linux 2023 (x86_64)", value: "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64" },
+  { label: "Amazon Linux 2023 (ARM64)",  value: "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64" },
+  { label: "Amazon Linux 2 (x86_64)",   value: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2" },
+  { label: "Amazon Linux 2 (ARM64)",    value: "/aws/service/ami-amazon-linux-latest/amzn2-ami-kernel-5.10-hvm-arm64-gp2" },
+  { label: "Ubuntu 22.04 LTS (x86_64)", value: "/aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id" },
+  { label: "Ubuntu 20.04 LTS (x86_64)", value: "/aws/service/canonical/ubuntu/server/20.04/stable/current/amd64/hvm/ebs-gp2/ami-id" },
+  { label: "Windows Server 2022",       value: "/aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base" },
+];
+
+const amiFieldStyle = (hasError) => ({
+  width: "100%", padding: "7px 10px", borderRadius: 6,
+  border: `1px solid ${hasError ? "var(--danger)" : "var(--border)"}`,
+  fontSize: 13, boxSizing: "border-box", outline: "none",
+  background: "var(--bg-surface)", color: "var(--text-primary)",
+});
+
+function AmiSelectField({ value, onChange, error }) {
+  const isPreset = AMI_PRESETS.some((p) => p.value === value);
+  const [selected,  setSelected]  = useState(isPreset ? value : (value ? "__custom__" : AMI_PRESETS[0].value));
+  const [customAmi, setCustomAmi] = useState(isPreset ? "" : (value || ""));
+
+  const handleSelect = (v) => {
+    setSelected(v);
+    onChange(v !== "__custom__" ? v : customAmi);
+  };
+
+  const handleCustomChange = (v) => {
+    setCustomAmi(v);
+    onChange(v);
+  };
+
+  return (
+    <div>
+      <select value={selected} onChange={(e) => handleSelect(e.target.value)} style={amiFieldStyle(error)}>
+        {AMI_PRESETS.map((p) => (
+          <option key={p.value} value={p.value}>{p.label}</option>
+        ))}
+        <option disabled>──────────────────────────</option>
+        <option value="__custom__">Custom AMI ID...</option>
+      </select>
+      {selected === "__custom__" && (
+        <input
+          type="text"
+          value={customAmi}
+          onChange={(e) => handleCustomChange(e.target.value)}
+          placeholder="ami-0c55b159cbfafe1f0"
+          style={{ ...amiFieldStyle(error), marginTop: 6 }}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function ConfigModal({
   resourceType,
   existingConfig = {},
@@ -119,6 +175,8 @@ export default function ConfigModal({
       } else if (f.type === "parent-select") {
         const parents = getParentOptions(f.parentType);
         acc[f.key] = migratedConfig[f.key] !== undefined ? migratedConfig[f.key] : (parents.length > 0 ? parents[0].id : "");
+      } else if (f.type === "ami-select") {
+        acc[f.key] = migratedConfig[f.key] !== undefined ? migratedConfig[f.key] : AMI_PRESETS[0].value;
       } else {
         acc[f.key] = migratedConfig[f.key] !== undefined ? migratedConfig[f.key] : "";
       }
@@ -434,6 +492,12 @@ export default function ConfigModal({
                   value={form[f.key] || []}
                   onChange={(routes) => setForm({ ...form, [f.key]: routes })}
                   canvasNodes={canvasNodes}
+                />
+              ) : f.type === "ami-select" ? (
+                <AmiSelectField
+                  value={form[f.key] || ""}
+                  onChange={(v) => setForm({ ...form, [f.key]: v })}
+                  error={!!errors[f.key]}
                 />
               ) : (
                 <input

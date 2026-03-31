@@ -1,0 +1,158 @@
+{
+  "type": "EKSNodeGroup",
+  "title": "EKS Node Group",
+  "description": "An EKS Managed Node Group is the worker fleet for a cluster — a group of EC2 instances that run your pods. EKS handles node provisioning, draining, and replacement during upgrades. Each cluster can have multiple node groups with different instance types, AMI types, and scaling policies.",
+  "connections": {
+    "parents": ["EKSCluster"],
+    "trafficSources": ["EKSCluster"],
+    "trafficTargets": ["EKSCluster", "RDS", "ElastiCache"],
+    "associations": []
+  },
+  "practices": [
+    "Set min_size ≥ 2 for production — a single node group in one AZ creates a single point of failure during node recycling or AZ disruption.",
+    "Use separate node groups for different workload types (general, compute-heavy, memory-heavy) — lets each group scale independently without over-provisioning.",
+    "Prefer AL2023 over AL2 for new deployments — AL2023 uses a newer kernel, has better containerd support, and will be the long-term supported base.",
+    "Use Bottlerocket AMI for security-critical workloads — immutable root filesystem, minimal attack surface, automatic OS updates without full node drain.",
+    "Match AMI architecture to instance type — AL2_ARM_64 or BOTTLEROCKET_ARM_64 for Graviton (t4g, m7g, c7g) instances; x86 AMIs on ARM silently fail.",
+    "Keep Kubernetes version within one minor version of the cluster — upgrade the cluster first, then drain and upgrade node groups one at a time."
+  ],
+  "configNotes": [
+    "Subnets: assign the same subnets as the cluster (or a subset) — nodes must be in subnets reachable by the control plane. At least 1 subnet required; 2+ across AZs recommended for HA.",
+    "parentNodeId links this node group to its cluster — deleting the cluster cascades and removes all associated node groups.",
+    "The node group IAM role needs AmazonEKSWorkerNodePolicy + AmazonEKS_CNI_Policy + AmazonEC2ContainerRegistryReadOnly — CNI policy is required for VPC-native pod networking.",
+    "desired_size must be between min_size and max_size — Terraform will fail at plan time if this invariant is violated.",
+    "disk_size sets the root EBS volume — increase for workloads with large container images (ML models, monolithic apps). Default 20 GB fills quickly."
+  ],
+  "example": {
+    "version": 2,
+    "nodes": [
+      {
+        "id": "n0",
+        "type": "resourceNode",
+        "position": { "x": 150, "y": 0 },
+        "data": {
+          "resourceType": "VPC",
+          "label": "App VPC",
+          "config": { "name": "app-vpc", "cidr": "10.0.0.0/16" }
+        }
+      },
+      {
+        "id": "n0a",
+        "type": "resourceNode",
+        "position": { "x": 0, "y": 160 },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Private A",
+          "config": {
+            "name": "private-a",
+            "cidr": "10.0.1.0/24",
+            "visibility": "Private",
+            "availability_zone": "us-east-1a",
+            "vpcId": "n0"
+          }
+        }
+      },
+      {
+        "id": "n0b",
+        "type": "resourceNode",
+        "position": { "x": 220, "y": 160 },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Private B",
+          "config": {
+            "name": "private-b",
+            "cidr": "10.0.2.0/24",
+            "visibility": "Private",
+            "availability_zone": "us-east-1b",
+            "vpcId": "n0"
+          }
+        }
+      },
+      {
+        "id": "n1",
+        "type": "resourceNode",
+        "position": { "x": 150, "y": 340 },
+        "data": {
+          "resourceType": "EKSCluster",
+          "label": "App Cluster",
+          "config": {
+            "name": "app-cluster",
+            "subnets": ["n0a", "n0b"],
+            "kubernetes_version": "1.30",
+            "endpoint_private_access": "true",
+            "endpoint_public_access": "false",
+            "enabled_cluster_log_types": "api,audit",
+            "iam_role_id": "role-eks-cluster"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "type": "resourceNode",
+        "position": { "x": 0, "y": 520 },
+        "data": {
+          "resourceType": "EKSNodeGroup",
+          "label": "App Nodes",
+          "config": {
+            "name": "app-nodes",
+            "parentNodeId": "n1",
+            "subnets": ["n0a", "n0b"],
+            "instance_type": "t3.large",
+            "ami_type": "AL2_x86_64",
+            "min_size": "2",
+            "max_size": "8",
+            "desired_size": "3",
+            "disk_size": "50",
+            "iam_role_id": "role-eks-nodes"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "type": "resourceNode",
+        "position": { "x": 310, "y": 520 },
+        "data": {
+          "resourceType": "EKSNodeGroup",
+          "label": "Compute Nodes",
+          "config": {
+            "name": "compute-nodes",
+            "parentNodeId": "n1",
+            "subnets": ["n0a", "n0b"],
+            "instance_type": "c5.xlarge",
+            "ami_type": "AL2_x86_64",
+            "min_size": "1",
+            "max_size": "6",
+            "desired_size": "2",
+            "disk_size": "50",
+            "iam_role_id": "role-eks-nodes"
+          }
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e-sna-vpc", "type": "structural", "source": "n0", "target": "n0a", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e-snb-vpc", "type": "structural", "source": "n0", "target": "n0b", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e-sna-cluster", "type": "structural", "source": "n0a", "target": "n1", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e-snb-cluster", "type": "structural", "source": "n0b", "target": "n1", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e1", "type": "traffic", "source": "n1", "target": "n2", "data": { "ingress": [{ "port": "10250", "protocol": "TCP" }], "egress": [{ "port": "443", "protocol": "HTTPS" }] } },
+      { "id": "e2", "type": "traffic", "source": "n1", "target": "n3", "data": { "ingress": [{ "port": "10250", "protocol": "TCP" }], "egress": [{ "port": "443", "protocol": "HTTPS" }] } }
+    ],
+    "securityGroups": [],
+    "roles": [
+      {
+        "id": "role-eks-cluster",
+        "name": "eks-cluster-role",
+        "policies": ["AmazonEKSClusterPolicy"]
+      },
+      {
+        "id": "role-eks-nodes",
+        "name": "eks-node-role",
+        "policies": [
+          "AmazonEKSWorkerNodePolicy",
+          "AmazonEKS_CNI_Policy",
+          "AmazonEC2ContainerRegistryReadOnly"
+        ]
+      }
+    ]
+  }
+}

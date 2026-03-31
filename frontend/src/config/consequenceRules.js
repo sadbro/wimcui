@@ -1846,6 +1846,90 @@ export const consequenceRules = [
     },
   },
 
+  // ─── EKS ──────────────────────────────────────────────────────────────────
+
+  {
+    id: "eks_cluster_no_subnets",
+    category: "availability",
+    check: ({ nodes }) =>
+      nodes
+        .filter((n) => n.data?.resourceType === "EKSCluster")
+        .filter((n) => !(n.data?.config?.subnets?.length >= 2))
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} needs at least 2 subnets in different AZs — required for EKS control plane HA`,
+        })),
+  },
+
+  {
+    id: "eks_nodegroup_no_subnets",
+    category: "availability",
+    check: ({ nodes }) =>
+      nodes
+        .filter((n) => n.data?.resourceType === "EKSNodeGroup")
+        .filter((n) => !(n.data?.config?.subnets?.length >= 1))
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has no subnets — nodes cannot be launched`,
+        })),
+  },
+
+  {
+    id: "eks_cluster_no_nodegroup",
+    category: "availability",
+    check: ({ nodes }) => {
+      const clusters   = nodes.filter((n) => n.data?.resourceType === "EKSCluster");
+      const nodeGroups = nodes.filter((n) => n.data?.resourceType === "EKSNodeGroup");
+      return clusters
+        .filter((c) => !nodeGroups.some((ng) => ng.data?.config?.parentNodeId === c.id))
+        .map((c) => ({
+          node: c,
+          message: `${c.data.label} has no Node Group — cluster cannot schedule any workloads`,
+        }));
+    },
+  },
+
+  {
+    id: "eks_nodegroup_orphan",
+    category: "smell",
+    check: ({ nodes }) =>
+      nodes
+        .filter((n) => n.data?.resourceType === "EKSNodeGroup")
+        .filter((n) => {
+          const parentId = n.data?.config?.parentNodeId;
+          if (!parentId) return true;
+          return !nodes.some((p) => p.id === parentId && p.data?.resourceType === "EKSCluster");
+        })
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has no EKS Cluster — orphaned node group`,
+        })),
+  },
+
+  {
+    id: "eks_cluster_no_iam_role",
+    category: "security",
+    check: ({ nodes }) =>
+      nodes
+        .filter((n) => n.data?.resourceType === "EKSCluster" && !n.data?.config?.iam_role_id)
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has no IAM role — cluster cannot manage worker nodes or call AWS APIs`,
+        })),
+  },
+
+  {
+    id: "eks_nodegroup_no_iam_role",
+    category: "security",
+    check: ({ nodes }) =>
+      nodes
+        .filter((n) => n.data?.resourceType === "EKSNodeGroup" && !n.data?.config?.iam_role_id)
+        .map((n) => ({
+          node: n,
+          message: `${n.data.label} has no IAM role — nodes cannot join the cluster or pull from ECR`,
+        })),
+  },
+
 ];
 
 export const CATEGORY_LABELS = {

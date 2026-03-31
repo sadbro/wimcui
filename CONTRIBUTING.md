@@ -6,7 +6,7 @@ Thanks for your interest in contributing. This guide covers the most common cont
 
 ## Adding a New AWS Resource Type
 
-Adding a resource requires touching **9 files** in a specific order. Each step has a clear pattern you can copy from an existing resource. Use **ElastiCache** as your reference — it's a recent addition that covers all the common patterns (subnets, SGs, traffic rules, HCL generation).
+Adding a resource requires touching **9 files** in a specific order. Each step has a clear pattern you can copy from an existing resource. Use **ElastiCache** as your reference for the common path (subnets, SGs, traffic rules, HCL generation). For atomic drop resources (parent + auto-spawned companion), use **EKSCluster + EKSNodeGroup** as the reference.
 
 ### The Pipeline
 
@@ -41,6 +41,25 @@ YourResource: {
 - `sgCapable`: true if the resource runs inside a VPC and accepts network traffic (EC2, ECS, RDS, ElastiCache, Lambda with VPC). False for API-accessed services (S3, SQS, DynamoDB).
 - `iamCapable`: true if the resource assumes an IAM role (EC2, ECS, Lambda). False for everything else.
 - `category`: affects sidebar grouping. Network infra = "network", compute/containers = "compute", supporting services = "global".
+
+**Atomic drop (optional):** If your resource always requires a companion resource to be useful, you can auto-spawn it on drop. Add these flags to the parent:
+
+```javascript
+atomicDrop:       true,
+atomicDropTarget: "CompanionResource",  // registry key of the companion
+```
+
+And this flag on the companion (informational — used by cascade delete):
+
+```javascript
+dependentOf: "YourResource",
+```
+
+When `atomicDrop` is true:
+- After the parent's config modal is saved, `onModalSave` in InfraCanvas.jsx detects the flag, calls `placeNode` for the companion (220px to the right), creates a traffic edge between them, and triggers the SG auto-create modal for the pair.
+- Deleting the parent automatically deletes all companions (nodes whose `config.parentNodeId === parentId`). Other child resources that reference the parent via non-cascade config fields are still blocked from deletion — the children guard remains in effect for those.
+- The companion must have a `parentNodeId` field (type `dependent-select` with `parentType`) so the link is stored in config.
+- `setPendingSGPrompt` must be called as `{ nodes, onSkip }` — never as a bare array. See the SG prompt shape note below.
 
 ---
 
@@ -77,11 +96,17 @@ YourResource: [
 
 **Field types available:**
 - `text` — free-form input. Supports `placeholder`, `required`, `validate(value)`.
-- `select` — dropdown. Requires `options` array.
-- `multi-select` — multi-select dropdown. Use with `parentType` for subnet/VPC selection.
+- `select` — dropdown. Requires `options` array (or `getOptions(canvasNodes, form, region)` for dynamic options). Supports `optionLabels` map for display overrides.
+- `multi-select` — multi-select checkbox list. Use with `parentType` for subnet/VPC selection. Requires `minItems` for validation.
 - `sg-select` — Security Group multi-select. Only for `sgCapable` resources.
 - `iam-role-select` — IAM Role select. Only for `iamCapable` resources.
-- `dependent-select` — options change based on another field. Requires `dependsOn` and `optionMap`.
+- `dependent-select` — three variants:
+  - `optionsMap` + `dependsOn`: options change based on another field's value (e.g. RDS engine → version)
+  - `parentType` alone: renders a dropdown of canvas nodes filtered by that resource type. **Does NOT create a structural edge** — use for reference fields like `parentNodeId` in atomic drop companions.
+  - `parentTypeMap`: maps this field's value to a resource type filter.
+- `parent-select` — dropdown of canvas nodes of `parentType`; **creates a structural edge on save**. Use for `subnetId`, `vpcId`.
+- `ami-select` — preset dropdown (AWS SSM parameter paths) with a Custom fallback text input. Presets are region-agnostic and resolve to the correct AMI at `terraform apply` time. The `__custom__` sentinel is an internal UI state — the form field always holds the final SSM path or `ami-*` ID. Use `validate` to accept both SSM paths (`value.startsWith("/aws/service/")`) and raw AMI IDs (`/^ami-[a-f0-9]{8,17}$/`).
+- `route-list` — specialized route editor. Only for RouteTable.
 - `visibleWhen: (form) => boolean` — conditionally show/hide a field based on other field values.
 
 ---
@@ -141,6 +166,7 @@ Add warning-level validation rules. These appear in the Review Canvas panel unde
 - Single AZ / no multi-AZ
 - Missing auth / access controls
 - No consumers / orphan resource
+- Missing required structural dependencies (e.g. subnets for EKSCluster/EKSNodeGroup, node group for EKSCluster)
 - Expensive defaults (large instance types with no justification)
 - Missing names / descriptions
 
@@ -232,6 +258,8 @@ const GENERATION_ORDER = [
   "S3", "DynamoDB", "SQS", "SNS", "EventBridge",
   "SecretsManager", "APIGateway", "ElastiCache", "ECR",
   "Route53", "Kinesis", "ACM", "CloudFront", "WAF", "ASG",
+  "EKSCluster", "EKSNodeGroup",
+  "Cognito", "StepFunctions",
   "YourResource",   // <-- add here, respecting dependency order
 ];
 ```
@@ -305,12 +333,30 @@ Every resource needs a documentation file. It powers the `?` button on the canva
 
 ---
 
+### SG Auto-Create Prompt Shape
+
+If your resource (or its atomic drop companion) is `sgCapable`, the atomic drop flow triggers the SG auto-create modal. The state variable `pendingSGPrompt` must always be set as an object — never as a bare array:
+
+```javascript
+setPendingSGPrompt({
+  nodes: [
+    { id: parentNodeId, data: { label: "cluster-name", resourceType: "EKSCluster" } },
+    { id: companionNodeId, data: { label: "nodes-name", resourceType: "EKSNodeGroup" } },
+  ],
+  onSkip: () => setPendingSGPrompt(null),
+});
+```
+
+The `onSkip` callback is context-specific. The import flow shows a "Canvas imported." toast on skip; the atomic drop flow just closes the prompt. Passing `onSkip` in the object keeps both paths in one state slot.
+
+---
+
 ## Checklist
 
 Use this checklist before submitting a PR for a new resource:
 
-- [ ] `resourceRegistry.js` — entry with label, color, category, sgCapable, iamCapable
-- [ ] `resourceConfig.js` — field definitions with correct types and validation
+- [ ] `resourceRegistry.js` — entry with label, color, category, sgCapable, iamCapable; add atomicDrop/atomicDropTarget/dependentOf if applicable
+- [ ] `resourceConfig.js` — field definitions with correct types and validation; use `ami-select` for AMI fields, `dependent-select` with `parentType` for companion `parentNodeId` fields
 - [ ] `trafficRules.js` — traffic direction rules (or null entry)
 - [ ] `associationRules.js` — only if resource has non-traffic associations
 - [ ] `consequenceRules.js` — at least 2-3 rules covering security, availability, naming

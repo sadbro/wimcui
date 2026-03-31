@@ -1,11 +1,12 @@
 /**
  * HCL Generator — converts canvas context to Terraform HCL.
  *
- * Covers 25 of 27 resource types (Cognito and StepFunctions have no generator yet):
+ * Covers all 27 resource types:
  *   Network:  VPC, Subnet, IGW, NATGateway, RouteTable
  *   Compute:  EC2, RDS, LoadBalancer, ECS, ElastiCache, ASG, EKSCluster, EKSNodeGroup
  *   Global:   S3, Lambda, DynamoDB, SQS, SNS, EventBridge, SecretsManager,
- *             APIGateway, ECR, Route53, Kinesis, ACM, CloudFront, WAF
+ *             APIGateway, ECR, Route53, Kinesis, ACM, CloudFront, WAF,
+ *             StepFunctions, Cognito
  *   Cross-cutting: Security Groups, IAM Roles
  *
  * Entry point: generateHCL(ctx, region) → string
@@ -190,6 +191,8 @@ const TF_TYPE_MAP = {
   ASG:            "aws_autoscaling_group",
   EKSCluster:     "aws_eks_cluster",
   EKSNodeGroup:   "aws_eks_node_group",
+  StepFunctions:  "aws_sfn_state_machine",
+  Cognito:        "aws_cognito_user_pool",
 };
 
 // ─── Per-Resource Generators ─────────────────────────────────────────────────
@@ -1308,6 +1311,86 @@ const generators = {
     return blocks;
   },
 
+  // ─── StepFunctions ───────────────────────────────────────────────────────
+  StepFunctions(nodes, names, ctx, warnings) {
+    const blocks = [];
+    nodes.forEach((n) => {
+      const cfg = n.data?.config || {};
+      const name = names[n.id];
+      const r = createRefResolver(names, warnings, n.data?.label || name);
+
+      const roleRef = cfg.iam_role_id ? r.ref("aws_iam_role", cfg.iam_role_id, "arn") : null;
+      const level = cfg.logging_level || "OFF";
+
+      const loggingBlock = level !== "OFF"
+        ? innerBlock("logging_configuration", [
+            attr("level", level, 2),
+            rawAttr("include_execution_data", "false", 2),
+            attr("log_destination", "REPLACE_WITH_CLOUDWATCH_LOG_GROUP_ARN:*", 2),
+          ])
+        : null;
+
+      const tracingBlock = cfg.tracing_enabled
+        ? innerBlock("tracing_configuration", [
+            boolAttr("enabled", cfg.tracing_enabled, 2),
+          ])
+        : null;
+
+      blocks.push(block("aws_sfn_state_machine", name, name, [
+        attr("name", cfg.name || n.data?.label),
+        roleRef ? rawAttr("role_arn", roleRef) : comment("WARNING: no execution role assigned — role_arn is required"),
+        cfg.type ? attr("type", cfg.type) : null,
+        "",
+        `  definition = jsonencode({`,
+        `    Comment = "Managed by WIMCUI — replace with your States Language definition"`,
+        `    StartAt = "FirstState"`,
+        `    States  = {}`,
+        `  })`,
+        loggingBlock ? "" : null,
+        loggingBlock,
+        tracingBlock ? "" : null,
+        tracingBlock,
+        "",
+        mapBlock("tags", [
+          attr("Name", cfg.name || n.data?.label, 2),
+        ]),
+      ]));
+    });
+    return blocks;
+  },
+
+  // ─── Cognito ─────────────────────────────────────────────────────────────
+  Cognito(nodes, names, ctx, warnings) {
+    const blocks = [];
+    nodes.forEach((n) => {
+      const cfg = n.data?.config || {};
+      const name = names[n.id];
+
+      const autoVerifyRaw = cfg.auto_verified_attributes;
+      const autoVerifyList = autoVerifyRaw
+        ? autoVerifyRaw.split(",").map((s) => s.trim()).filter(Boolean)
+        : [];
+
+      blocks.push(block("aws_cognito_user_pool", name, name, [
+        attr("name", cfg.name || n.data?.label),
+        cfg.mfa_configuration ? attr("mfa_configuration", cfg.mfa_configuration) : null,
+        autoVerifyList.length > 0 ? listAttr("auto_verified_attributes", autoVerifyList) : null,
+        "",
+        innerBlock("password_policy", [
+          cfg.password_minimum_length ? numAttr("minimum_length", cfg.password_minimum_length, 2) : null,
+          cfg.password_require_uppercase != null ? boolAttr("require_uppercase", cfg.password_require_uppercase, 2) : null,
+          cfg.password_require_numbers != null ? boolAttr("require_numbers", cfg.password_require_numbers, 2) : null,
+          cfg.password_require_symbols != null ? boolAttr("require_symbols", cfg.password_require_symbols, 2) : null,
+        ]),
+        "",
+        mapBlock("tags", [
+          attr("Name", cfg.name || n.data?.label, 2),
+        ]),
+      ]));
+    });
+    return blocks;
+  },
+
 };
 
 // ─── Security Group Generator ────────────────────────────────────────────────
@@ -1437,9 +1520,11 @@ function generateIAMRoles(ctx, names) {
     const services = new Set();
     assignedNodes.forEach((n) => {
       const rt = n.data?.resourceType;
-      if (rt === "EC2" || rt === "ASG") services.add("ec2.amazonaws.com");
+      if (rt === "EC2" || rt === "ASG" || rt === "EKSNodeGroup") services.add("ec2.amazonaws.com");
       if (rt === "ECS") services.add("ecs-tasks.amazonaws.com");
       if (rt === "Lambda") services.add("lambda.amazonaws.com");
+      if (rt === "StepFunctions") services.add("states.amazonaws.com");
+      if (rt === "EKSCluster") services.add("eks.amazonaws.com");
     });
     if (services.size === 0) services.add("ec2.amazonaws.com");
 
@@ -1516,6 +1601,8 @@ const GENERATION_ORDER = [
   "ASG",
   "EKSCluster",
   "EKSNodeGroup",
+  "StepFunctions",
+  "Cognito",
 ];
 
 // ─── Main Entry Point ────────────────────────────────────────────────────────

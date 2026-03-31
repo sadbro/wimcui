@@ -1027,6 +1027,28 @@ function buildHclChecks(ctx) {
       checks.push({ ok: false, warn: false, message: `${n.data.label} is missing scaling parameters (min/max/desired)` });
   });
 
+  // ─── StepFunctions hard fails ────────────────────────────────────────────
+  const sfnNodes = ctx.byResourceType?.["StepFunctions"] || [];
+  sfnNodes.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.name?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a name` });
+    if (!cfg.type)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing state machine type (STANDARD or EXPRESS)` });
+    if (!cfg.iam_role_id)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing an execution role — role_arn is required` });
+  });
+
+  // ─── Cognito hard fails ──────────────────────────────────────────────────
+  const cognitoNodes = ctx.byResourceType?.["Cognito"] || [];
+  cognitoNodes.forEach((n) => {
+    const cfg = n.data?.config || {};
+    if (!cfg.name?.trim())
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing a name` });
+    if (!cfg.mfa_configuration)
+      checks.push({ ok: false, warn: false, message: `${n.data.label} is missing MFA configuration` });
+  });
+
   // ─── Orphan check — exclude intentionally edgeless global services ─────────
   const EDGELESS_TYPES = ["Public", "S3", "DynamoDB", "SQS", "SNS", "EventBridge", "SecretsManager", "ECR", "ACM", "WAF"];
   nodes.forEach((n) => {

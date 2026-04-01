@@ -39,6 +39,7 @@
     { "key": "auth-gated-api",        "title": "Auth-Gated API",         "summary": "Cognito → API Gateway → Lambda → DynamoDB + Secrets Manager",                  "group": true },
     { "key": "kubernetes-platform",   "title": "Kubernetes Platform",    "summary": "EKS cluster + node group with ALB ingress across public and private subnets",  "group": true },
     { "key": "event-driven-fanout",   "title": "Event-Driven Fanout",    "summary": "EventBridge → SNS → SQS × 2 → Lambda — isolated async consumers",             "group": true },
-    { "key": "orchestrated-workflow", "title": "Orchestrated Workflow",  "summary": "EventBridge → Step Functions → Lambda × 3 → SQS + DynamoDB",                  "group": true }
+    { "key": "orchestrated-workflow", "title": "Orchestrated Workflow",  "summary": "EventBridge → Step Functions → Lambda × 3 → SQS + DynamoDB",                  "group": true },
+    { "key": "global-saas-platform",  "title": "Global SaaS Platform",  "summary": "All 29 resource types in one architecture — edge, auth, multi-paradigm compute, multi-store data, events, and orchestration", "group": true }
   ]
 }

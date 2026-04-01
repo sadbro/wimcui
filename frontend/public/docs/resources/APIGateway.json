@@ -77,9 +77,6 @@
             "handler": "index.handler",
             "memory_size": "256",
             "timeout": "30",
-            "sg_ids": [
-              "sg-n3"
-            ],
             "iam_role_id": "role-lambda-n3"
           }
         }
@@ -99,9 +96,6 @@
             "handler": "index.handler",
             "memory_size": "256",
             "timeout": "30",
-            "sg_ids": [
-              "sg-n4"
-            ],
             "iam_role_id": "role-lambda-n3"
           }
         }
@@ -128,50 +122,7 @@
       }
     ],
     "version": 2,
-    "securityGroups": [
-      {
-        "id": "sg-n3",
-        "name": "users-fn-sg",
-        "description": "Security group for Users Handler",
-        "inbound": [
-          {
-            "protocol": "tcp",
-            "port": "443",
-            "cidr": "0.0.0.0/0",
-            "description": "HTTPS"
-          }
-        ],
-        "outbound": [
-          {
-            "protocol": "-1",
-            "port": "0",
-            "cidr": "0.0.0.0/0",
-            "description": "All outbound"
-          }
-        ]
-      },
-      {
-        "id": "sg-n4",
-        "name": "orders-fn-sg",
-        "description": "Security group for Orders Handler",
-        "inbound": [
-          {
-            "protocol": "tcp",
-            "port": "443",
-            "cidr": "0.0.0.0/0",
-            "description": "HTTPS"
-          }
-        ],
-        "outbound": [
-          {
-            "protocol": "-1",
-            "port": "0",
-            "cidr": "0.0.0.0/0",
-            "description": "All outbound"
-          }
-        ]
-      }
-    ],
+    "securityGroups": [],
     "roles": [
       {
         "id": "role-lambda-n3",

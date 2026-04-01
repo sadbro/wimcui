@@ -1,0 +1,788 @@
+{
+  "type": "group",
+  "title": "Global SaaS Platform",
+  "description": "Full-stack production architecture covering all 29 resource types. Edge delivery (Route53 → CloudFront + WAF + ACM) serves a static SPA from S3. Cognito handles auth, API Gateway routes authenticated requests to Lambda, ALB routes heavier workloads to ECS Fargate microservices. EC2 and ASG run scheduled batch workers. EKS hosts the recommendation engine. Data lives in RDS (relational), DynamoDB (catalog/sessions), and ElastiCache (hot reads). Kinesis streams clickstream events to a Lambda stream processor. EventBridge routes domain events to SNS for fan-out into SQS consumer queues. Step Functions orchestrates multi-step order fulfillment. ECR stores all container images. Secrets Manager holds all credentials. Future resources — VPC Endpoints, EFS, SES, OpenSearch — slot into this topology without structural changes.",
+  "resources": [
+    "VPC", "Subnet", "IGW", "NATGateway", "RouteTable",
+    "EC2", "ECS", "Lambda", "ASG", "EKSCluster", "EKSNodeGroup",
+    "RDS", "DynamoDB", "ElastiCache",
+    "LoadBalancer", "S3", "ECR",
+    "SQS", "SNS", "EventBridge", "Kinesis",
+    "SecretsManager", "WAF", "ACM", "Cognito", "StepFunctions",
+    "CloudFront", "Route53", "APIGateway"
+  ],
+  "practices": [
+    "WAF should attach to both CloudFront (scope: CLOUDFRONT) and the ALB (scope: REGIONAL). One WAF cannot serve both — they require separate Web ACL resources. This diagram uses one node for clarity.",
+    "Cognito → API Gateway eliminates auth logic from Lambda. API Gateway validates the JWT before Lambda is ever invoked. Never re-validate tokens inside your functions.",
+    "Use Lambda for stateless, short-lived operations (API handlers, queue processors). Use ECS for long-running stateful services (microservices, websocket servers). Use EKS for workloads that require Kubernetes primitives (ML inference, batch K8s jobs).",
+    "NAT Gateway costs add up fast. Add VPC Endpoints for S3, DynamoDB, and Kinesis to eliminate NAT charges on those AWS API calls — all three see high call volume from private subnets.",
+    "EventBridge → SNS → SQS is the correct fan-out chain. EventBridge alone delivers to one target per rule. SNS alone cannot queue. Together they give you routing, fan-out, and durable queuing.",
+    "Step Functions STANDARD type gives exactly-once execution and a full audit trail — required for financial workflows like order processing. Use EXPRESS only for high-throughput, idempotent, sub-5-minute tasks.",
+    "SQS visibility_timeout must be at least 6× your Lambda timeout. Lambda stream processor has a 60s timeout — set visibility_timeout to 360s or messages re-appear during processing.",
+    "ECR in the same account removes Docker Hub rate limits and cross-account pull latency. Enable image scanning on push and set image_tag_mutability to IMMUTABLE in production.",
+    "Secrets Manager is the single source of truth for credentials. ECS and Lambda read them at runtime via IAM. Never bake secrets into container images or Lambda deployment packages."
+  ],
+  "configNotes": [
+    "ALB subnets must reference 2 public subnet node IDs in different AZs (n8, n9).",
+    "ECS, RDS, ElastiCache subnets must reference 2 private subnet node IDs in different AZs (n13, n14).",
+    "EKSCluster and EKSNodeGroup subnets must reference private subnet node IDs. EKSNodeGroup parentNodeId must reference the EKSCluster node ID (n22).",
+    "CloudFront origin_id references the S3 node (n6) for the static frontend. API traffic hits the ALB directly via its DNS name.",
+    "WAF scope is CLOUDFRONT here. A production deployment would add a second WAF with REGIONAL scope attached to the ALB.",
+    "NAT Gateway must be in a public subnet (n8). It bridges private subnet egress to the IGW.",
+    "Lambda nodes (n18, n19) are public — they access DynamoDB, SQS, and Secrets Manager via AWS service endpoints, not VPC routing. If they needed RDS access, set vpc_id and subnets.",
+    "Kinesis stream_mode is PROVISIONED with 4 shards — each shard handles 1 MB/s write and 2 MB/s read. Switch to ON_DEMAND for variable-throughput workloads."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": { "x": 100, "y": 0 },
+        "data": {
+          "resourceType": "Route53",
+          "label": "Platform DNS",
+          "config": {
+            "name": "platform-dns",
+            "hosted_zone_name": "platform.example.com",
+            "zone_type": "public",
+            "record_type": "A",
+            "routing_policy": "simple"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": { "x": 450, "y": 0 },
+        "data": {
+          "resourceType": "ACM",
+          "label": "SSL Cert",
+          "config": {
+            "name": "platform-cert",
+            "domain_name": "platform.example.com",
+            "validation_method": "DNS",
+            "subject_alternative_names": "www.platform.example.com, api.platform.example.com"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": { "x": 800, "y": 0 },
+        "data": {
+          "resourceType": "CloudFront",
+          "label": "CDN",
+          "config": {
+            "name": "platform-cdn",
+            "origin_type": "S3",
+            "origin_id": "n6",
+            "acm_certificate_id": "n2",
+            "price_class": "PriceClass_All",
+            "viewer_protocol_policy": "redirect-to-https",
+            "default_ttl": "86400"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": { "x": 1150, "y": 0 },
+        "data": {
+          "resourceType": "WAF",
+          "label": "Web ACL",
+          "config": {
+            "name": "platform-waf",
+            "waf_name": "platform-web-acl",
+            "scope": "CLOUDFRONT",
+            "default_action": "allow",
+            "managed_rules": [
+              "AWSManagedRulesCommonRuleSet",
+              "AWSManagedRulesSQLiRuleSet",
+              "AWSManagedRulesAmazonIpReputationList"
+            ],
+            "rate_limit": "5000"
+          }
+        }
+      },
+      {
+        "id": "n5",
+        "position": { "x": 100, "y": 200 },
+        "data": {
+          "resourceType": "Cognito",
+          "label": "User Pool",
+          "config": {
+            "name": "platform-users",
+            "mfa_configuration": "OPTIONAL",
+            "auto_verified_attributes": "email",
+            "password_minimum_length": "12",
+            "password_require_uppercase": "true",
+            "password_require_numbers": "true",
+            "password_require_symbols": "true"
+          }
+        }
+      },
+      {
+        "id": "n6",
+        "position": { "x": 1150, "y": 200 },
+        "data": {
+          "resourceType": "S3",
+          "label": "Frontend Assets",
+          "config": {
+            "name": "platform-assets",
+            "bucket_name": "platform-static-assets",
+            "versioning": "Enabled",
+            "encryption": "SSE-S3 (AES-256)",
+            "block_public_access": "true"
+          }
+        }
+      },
+      {
+        "id": "n7",
+        "position": { "x": 550, "y": 420 },
+        "data": {
+          "resourceType": "VPC",
+          "label": "Platform VPC",
+          "config": {
+            "name": "platform-vpc",
+            "cidr": "10.0.0.0/16"
+          }
+        }
+      },
+      {
+        "id": "n8",
+        "position": { "x": 200, "y": 580 },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public AZ-A",
+          "config": {
+            "name": "pub-a",
+            "cidr": "10.0.1.0/24",
+            "visibility": "Public",
+            "availability_zone": "us-east-1a",
+            "vpcId": "n7"
+          }
+        }
+      },
+      {
+        "id": "n9",
+        "position": { "x": 550, "y": 580 },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public AZ-B",
+          "config": {
+            "name": "pub-b",
+            "cidr": "10.0.2.0/24",
+            "visibility": "Public",
+            "availability_zone": "us-east-1b",
+            "vpcId": "n7"
+          }
+        }
+      },
+      {
+        "id": "n10",
+        "position": { "x": 950, "y": 580 },
+        "data": {
+          "resourceType": "IGW",
+          "label": "Internet GW",
+          "config": {
+            "name": "platform-igw",
+            "vpcId": "n7"
+          }
+        }
+      },
+      {
+        "id": "n11",
+        "position": { "x": 200, "y": 760 },
+        "data": {
+          "resourceType": "NATGateway",
+          "label": "NAT GW",
+          "config": {
+            "name": "platform-nat",
+            "connectivity_type": "public",
+            "subnetId": "n8"
+          }
+        }
+      },
+      {
+        "id": "n12",
+        "position": { "x": 750, "y": 760 },
+        "data": {
+          "resourceType": "RouteTable",
+          "label": "Public RT",
+          "config": {
+            "name": "pub-rt",
+            "vpcId": "n7",
+            "routes": [{ "destination": "0.0.0.0/0", "target": "n10" }]
+          }
+        }
+      },
+      {
+        "id": "n13",
+        "position": { "x": 200, "y": 940 },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Private AZ-A",
+          "config": {
+            "name": "priv-a",
+            "cidr": "10.0.10.0/24",
+            "visibility": "Private",
+            "availability_zone": "us-east-1a",
+            "vpcId": "n7"
+          }
+        }
+      },
+      {
+        "id": "n14",
+        "position": { "x": 550, "y": 940 },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Private AZ-B",
+          "config": {
+            "name": "priv-b",
+            "cidr": "10.0.11.0/24",
+            "visibility": "Private",
+            "availability_zone": "us-east-1b",
+            "vpcId": "n7"
+          }
+        }
+      },
+      {
+        "id": "n15",
+        "position": { "x": 950, "y": 940 },
+        "data": {
+          "resourceType": "RouteTable",
+          "label": "Private RT",
+          "config": {
+            "name": "priv-rt",
+            "vpcId": "n7",
+            "routes": [{ "destination": "0.0.0.0/0", "target": "n11" }]
+          }
+        }
+      },
+      {
+        "id": "n16",
+        "position": { "x": 100, "y": 1120 },
+        "data": {
+          "resourceType": "APIGateway",
+          "label": "Platform API",
+          "config": {
+            "name": "platform-api",
+            "api_name": "platform-api",
+            "api_type": "HTTP",
+            "stage_name": "prod"
+          }
+        }
+      },
+      {
+        "id": "n17",
+        "position": { "x": 600, "y": 1120 },
+        "data": {
+          "resourceType": "LoadBalancer",
+          "label": "App ALB",
+          "config": {
+            "name": "platform-alb",
+            "load_balancer_type": "application",
+            "internal": "false",
+            "listener_port": "443",
+            "listener_protocol": "HTTPS",
+            "tg_port": "8080",
+            "tg_protocol": "HTTP",
+            "sg_ids": ["sg-n17"],
+            "subnets": ["n8", "n9"]
+          }
+        }
+      },
+      {
+        "id": "n18",
+        "position": { "x": 50, "y": 1340 },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "API Handler",
+          "config": {
+            "name": "api-handler",
+            "runtime": "nodejs20.x",
+            "handler": "index.handler",
+            "memory_size": "512",
+            "timeout": "30",
+            "iam_role_id": "role-lambda-n18"
+          }
+        }
+      },
+      {
+        "id": "n19",
+        "position": { "x": 350, "y": 1340 },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "Stream Processor",
+          "config": {
+            "name": "stream-processor",
+            "runtime": "python3.12",
+            "handler": "index.handler",
+            "memory_size": "512",
+            "timeout": "60",
+            "iam_role_id": "role-lambda-n19"
+          }
+        }
+      },
+      {
+        "id": "n20",
+        "position": { "x": 650, "y": 1340 },
+        "data": {
+          "resourceType": "ECS",
+          "label": "App Service",
+          "config": {
+            "name": "app-service",
+            "launch_type": "FARGATE",
+            "cpu": "1024",
+            "memory": "2048",
+            "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/platform/api:latest",
+            "desired_count": "3",
+            "sg_ids": ["sg-n20"],
+            "iam_role_id": "role-ecs-n20",
+            "subnets": ["n13", "n14"]
+          }
+        }
+      },
+      {
+        "id": "n21",
+        "position": { "x": 950, "y": 1340 },
+        "data": {
+          "resourceType": "EC2",
+          "label": "Batch Worker",
+          "config": {
+            "name": "batch-worker",
+            "ami": "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64",
+            "instance_type": "m5.large",
+            "sg_ids": ["sg-n21"],
+            "iam_role_id": "role-ec2-n21",
+            "subnetId": "n13"
+          }
+        }
+      },
+      {
+        "id": "n22",
+        "position": { "x": 1250, "y": 1340 },
+        "data": {
+          "resourceType": "EKSCluster",
+          "label": "Reco Engine",
+          "config": {
+            "name": "reco-cluster",
+            "kubernetes_version": "1.30",
+            "endpoint_public_access": "false",
+            "endpoint_private_access": "true",
+            "enabled_cluster_log_types": "api,audit",
+            "sg_ids": ["sg-n22"],
+            "iam_role_id": "role-eks-n22",
+            "subnets": ["n13", "n14"]
+          }
+        }
+      },
+      {
+        "id": "n23",
+        "position": { "x": 950, "y": 1520 },
+        "data": {
+          "resourceType": "ASG",
+          "label": "Batch ASG",
+          "config": {
+            "name": "batch-asg",
+            "ami": "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64",
+            "instance_type": "m5.large",
+            "min_size": "1",
+            "max_size": "8",
+            "desired_capacity": "2",
+            "health_check_type": "EC2",
+            "sg_ids": ["sg-n23"],
+            "iam_role_id": "role-asg-n23",
+            "subnets": ["n13", "n14"]
+          }
+        }
+      },
+      {
+        "id": "n24",
+        "position": { "x": 1250, "y": 1520 },
+        "data": {
+          "resourceType": "EKSNodeGroup",
+          "label": "Reco Nodes",
+          "config": {
+            "name": "reco-nodes",
+            "parentNodeId": "n22",
+            "instance_type": "m5.xlarge",
+            "min_size": "2",
+            "max_size": "6",
+            "desired_size": "3",
+            "ami_type": "AL2_x86_64",
+            "iam_role_id": "role-eksnodes-n24",
+            "subnets": ["n13", "n14"]
+          }
+        }
+      },
+      {
+        "id": "n25",
+        "position": { "x": 50, "y": 1720 },
+        "data": {
+          "resourceType": "RDS",
+          "label": "Platform DB",
+          "config": {
+            "name": "platform-db",
+            "engine": "postgres",
+            "engine_version": "16.1",
+            "instance_class": "db.r6g.large",
+            "allocated_storage": "100",
+            "username": "admin",
+            "password": "changeme123!",
+            "storage_encrypted": "true",
+            "sg_ids": ["sg-n25"],
+            "subnets": ["n13", "n14"]
+          }
+        }
+      },
+      {
+        "id": "n26",
+        "position": { "x": 400, "y": 1720 },
+        "data": {
+          "resourceType": "DynamoDB",
+          "label": "Product Catalog",
+          "config": {
+            "name": "product-catalog",
+            "table_name": "product-catalog",
+            "billing_mode": "PAY_PER_REQUEST",
+            "hash_key": "pk",
+            "hash_key_type": "S",
+            "point_in_time_recovery": "true"
+          }
+        }
+      },
+      {
+        "id": "n27",
+        "position": { "x": 750, "y": 1720 },
+        "data": {
+          "resourceType": "ElastiCache",
+          "label": "Redis Cache",
+          "config": {
+            "name": "platform-cache",
+            "engine": "redis",
+            "node_type": "cache.r6g.large",
+            "num_cache_nodes": "1",
+            "sg_ids": ["sg-n27"],
+            "subnets": ["n13", "n14"],
+            "subnetId": "n13"
+          }
+        }
+      },
+      {
+        "id": "n28",
+        "position": { "x": 1100, "y": 1720 },
+        "data": {
+          "resourceType": "Kinesis",
+          "label": "Clickstream",
+          "config": {
+            "name": "platform-clickstream",
+            "stream_name": "platform-clickstream",
+            "stream_mode": "PROVISIONED",
+            "shard_count": "4",
+            "retention_hours": "48",
+            "encryption": "KMS"
+          }
+        }
+      },
+      {
+        "id": "n29",
+        "position": { "x": 50, "y": 1920 },
+        "data": {
+          "resourceType": "EventBridge",
+          "label": "Domain Events",
+          "config": {
+            "name": "domain-events",
+            "bus_name": "platform-domain-events"
+          }
+        }
+      },
+      {
+        "id": "n30",
+        "position": { "x": 400, "y": 1920 },
+        "data": {
+          "resourceType": "SQS",
+          "label": "Order Queue",
+          "config": {
+            "name": "order-processing-queue",
+            "queue_name": "order-processing",
+            "fifo": "false",
+            "visibility_timeout": "360"
+          }
+        }
+      },
+      {
+        "id": "n31",
+        "position": { "x": 750, "y": 1920 },
+        "data": {
+          "resourceType": "SNS",
+          "label": "Notifications",
+          "config": {
+            "name": "platform-notifications",
+            "topic_name": "platform-notifications",
+            "fifo": "false"
+          }
+        }
+      },
+      {
+        "id": "n32",
+        "position": { "x": 1100, "y": 1920 },
+        "data": {
+          "resourceType": "SQS",
+          "label": "Notify Queue",
+          "config": {
+            "name": "notification-queue",
+            "queue_name": "notification-delivery",
+            "fifo": "false",
+            "visibility_timeout": "180"
+          }
+        }
+      },
+      {
+        "id": "n33",
+        "position": { "x": 50, "y": 2120 },
+        "data": {
+          "resourceType": "StepFunctions",
+          "label": "Order Workflow",
+          "config": {
+            "name": "order-fulfillment",
+            "type": "STANDARD",
+            "logging_level": "ERROR",
+            "tracing_enabled": "false",
+            "iam_role_id": "role-sf-n33"
+          }
+        }
+      },
+      {
+        "id": "n34",
+        "position": { "x": 500, "y": 2120 },
+        "data": {
+          "resourceType": "ECR",
+          "label": "Platform Images",
+          "config": {
+            "name": "platform-images",
+            "repository_name": "platform/api",
+            "image_tag_mutability": "IMMUTABLE"
+          }
+        }
+      },
+      {
+        "id": "n35",
+        "position": { "x": 950, "y": 2120 },
+        "data": {
+          "resourceType": "SecretsManager",
+          "label": "Platform Secrets",
+          "config": {
+            "name": "platform-secrets",
+            "secret_name": "prod/platform/credentials"
+          }
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e1",  "type": "structural",  "source": "n7",  "target": "n8",  "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e2",  "type": "structural",  "source": "n7",  "target": "n9",  "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e3",  "type": "structural",  "source": "n7",  "target": "n13", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e4",  "type": "structural",  "source": "n7",  "target": "n14", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e5",  "type": "structural",  "source": "n7",  "target": "n10", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e6",  "type": "structural",  "source": "n8",  "target": "n11", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e7",  "type": "structural",  "source": "n8",  "target": "n17", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e8",  "type": "structural",  "source": "n9",  "target": "n17", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e9",  "type": "structural",  "source": "n13", "target": "n20", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e10", "type": "structural",  "source": "n14", "target": "n20", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e11", "type": "structural",  "source": "n13", "target": "n21", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e12", "type": "structural",  "source": "n13", "target": "n23", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e13", "type": "structural",  "source": "n14", "target": "n23", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e14", "type": "structural",  "source": "n13", "target": "n22", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e15", "type": "structural",  "source": "n14", "target": "n22", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e16", "type": "structural",  "source": "n13", "target": "n25", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e17", "type": "structural",  "source": "n14", "target": "n25", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e18", "type": "structural",  "source": "n13", "target": "n27", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e19", "type": "structural",  "source": "n14", "target": "n27", "sourceHandle": "bottom", "targetHandle": "top" },
+
+      { "id": "e20", "type": "association", "source": "n1",  "target": "n3"  },
+      { "id": "e21", "type": "association", "source": "n2",  "target": "n3"  },
+      { "id": "e22", "type": "association", "source": "n3",  "target": "n6"  },
+      { "id": "e23", "type": "association", "source": "n4",  "target": "n3"  },
+      { "id": "e24", "type": "association", "source": "n4",  "target": "n17" },
+      { "id": "e25", "type": "association", "source": "n5",  "target": "n16" },
+      { "id": "e26", "type": "association", "source": "n12", "target": "n8"  },
+      { "id": "e27", "type": "association", "source": "n12", "target": "n9"  },
+      { "id": "e28", "type": "association", "source": "n12", "target": "n10" },
+      { "id": "e29", "type": "association", "source": "n15", "target": "n13" },
+      { "id": "e30", "type": "association", "source": "n15", "target": "n14" },
+      { "id": "e31", "type": "association", "source": "n15", "target": "n11" },
+      { "id": "e32", "type": "association", "source": "n22", "target": "n24" },
+      { "id": "e33", "type": "association", "source": "n34", "target": "n20" },
+      { "id": "e34", "type": "association", "source": "n34", "target": "n24" },
+      { "id": "e35", "type": "association", "source": "n35", "target": "n25" },
+      { "id": "e36", "type": "association", "source": "n35", "target": "n20" },
+      { "id": "e37", "type": "association", "source": "n29", "target": "n31" },
+      { "id": "e38", "type": "association", "source": "n29", "target": "n33" },
+      { "id": "e39", "type": "association", "source": "n31", "target": "n30" },
+      { "id": "e40", "type": "association", "source": "n31", "target": "n32" },
+      { "id": "e41", "type": "association", "source": "n18", "target": "n35" },
+      { "id": "e42", "type": "association", "source": "n24", "target": "n26" },
+
+      { "id": "e43", "type": "traffic",     "source": "n16", "target": "n18" },
+      { "id": "e44", "type": "traffic",     "source": "n17", "target": "n20" },
+      { "id": "e45", "type": "traffic",     "source": "n20", "target": "n25" },
+      { "id": "e46", "type": "traffic",     "source": "n20", "target": "n27" },
+      { "id": "e47", "type": "traffic",     "source": "n20", "target": "n28" },
+      { "id": "e48", "type": "traffic",     "source": "n18", "target": "n26" },
+      { "id": "e49", "type": "traffic",     "source": "n18", "target": "n30" },
+      { "id": "e50", "type": "traffic",     "source": "n28", "target": "n19" },
+      { "id": "e51", "type": "traffic",     "source": "n19", "target": "n26" },
+      { "id": "e52", "type": "traffic",     "source": "n30", "target": "n19" },
+      { "id": "e53", "type": "traffic",     "source": "n33", "target": "n18" },
+      { "id": "e54", "type": "traffic",     "source": "n21", "target": "n25" }
+    ],
+    "version": 2,
+    "securityGroups": [
+      {
+        "id": "sg-n17",
+        "name": "platform-alb-sg",
+        "description": "Security group for the internet-facing Application Load Balancer",
+        "inbound": [
+          { "protocol": "tcp", "port": "443", "cidr": "0.0.0.0/0", "description": "HTTPS from internet" }
+        ],
+        "outbound": [
+          { "protocol": "tcp", "port": "8080", "cidr": "sg-n20", "description": "To ECS App Service" }
+        ]
+      },
+      {
+        "id": "sg-n20",
+        "name": "platform-ecs-sg",
+        "description": "Security group for ECS Fargate tasks",
+        "inbound": [
+          { "protocol": "tcp", "port": "8080", "cidr": "sg-n17", "description": "From ALB" }
+        ],
+        "outbound": [
+          { "protocol": "tcp", "port": "5432", "cidr": "sg-n25", "description": "To Platform DB" },
+          { "protocol": "tcp", "port": "6379", "cidr": "sg-n27", "description": "To Redis Cache" }
+        ]
+      },
+      {
+        "id": "sg-n21",
+        "name": "batch-worker-sg",
+        "description": "Security group for the batch worker EC2 instance",
+        "inbound": [
+          { "protocol": "tcp", "port": "22", "cidr": "10.0.0.0/16", "description": "SSH from VPC (SSM preferred)" }
+        ],
+        "outbound": [
+          { "protocol": "tcp", "port": "5432", "cidr": "sg-n25", "description": "To Platform DB" }
+        ]
+      },
+      {
+        "id": "sg-n22",
+        "name": "eks-cluster-sg",
+        "description": "Security group for EKS cluster control plane and nodes",
+        "inbound": [
+          { "protocol": "tcp", "port": "443",   "cidr": "10.0.0.0/16", "description": "K8s API from VPC" },
+          { "protocol": "tcp", "port": "10250", "cidr": "10.0.0.0/16", "description": "Kubelet from VPC" }
+        ],
+        "outbound": [
+          { "protocol": "-1", "port": "0", "cidr": "0.0.0.0/0", "description": "All outbound" }
+        ]
+      },
+      {
+        "id": "sg-n23",
+        "name": "batch-asg-sg",
+        "description": "Security group for the auto-scaled batch worker fleet",
+        "inbound": [
+          { "protocol": "tcp", "port": "22", "cidr": "10.0.0.0/16", "description": "SSH from VPC (SSM preferred)" }
+        ],
+        "outbound": [
+          { "protocol": "tcp", "port": "5432", "cidr": "sg-n25", "description": "To Platform DB" }
+        ]
+      },
+      {
+        "id": "sg-n25",
+        "name": "platform-db-sg",
+        "description": "Security group for the RDS Postgres instance",
+        "inbound": [
+          { "protocol": "tcp", "port": "5432", "cidr": "sg-n20", "description": "From ECS App Service" },
+          { "protocol": "tcp", "port": "5432", "cidr": "sg-n21", "description": "From Batch Worker EC2" },
+          { "protocol": "tcp", "port": "5432", "cidr": "sg-n23", "description": "From Batch ASG fleet" }
+        ],
+        "outbound": [
+          { "protocol": "-1", "port": "0", "cidr": "0.0.0.0/0", "description": "All outbound" }
+        ]
+      },
+      {
+        "id": "sg-n27",
+        "name": "platform-cache-sg",
+        "description": "Security group for the ElastiCache Redis cluster",
+        "inbound": [
+          { "protocol": "tcp", "port": "6379", "cidr": "sg-n20", "description": "From ECS App Service" }
+        ],
+        "outbound": [
+          { "protocol": "-1", "port": "0", "cidr": "0.0.0.0/0", "description": "All outbound" }
+        ]
+      }
+    ],
+    "roles": [
+      {
+        "id": "role-lambda-n18",
+        "name": "api-handler-role",
+        "policies": [
+          "AWSLambdaBasicExecutionRole",
+          "AmazonDynamoDBFullAccess",
+          "AmazonSQSFullAccess",
+          "SecretsManagerReadWrite"
+        ]
+      },
+      {
+        "id": "role-lambda-n19",
+        "name": "stream-processor-role",
+        "policies": [
+          "AWSLambdaBasicExecutionRole",
+          "AmazonDynamoDBFullAccess",
+          "AmazonKinesisFullAccess"
+        ]
+      },
+      {
+        "id": "role-ecs-n20",
+        "name": "app-service-task-role",
+        "policies": [
+          "AmazonECSTaskExecutionRolePolicy",
+          "SecretsManagerReadWrite"
+        ]
+      },
+      {
+        "id": "role-ec2-n21",
+        "name": "batch-worker-role",
+        "policies": [
+          "AmazonSSMManagedInstanceCore"
+        ]
+      },
+      {
+        "id": "role-asg-n23",
+        "name": "batch-asg-role",
+        "policies": [
+          "AmazonSSMManagedInstanceCore"
+        ]
+      },
+      {
+        "id": "role-eks-n22",
+        "name": "eks-cluster-role",
+        "policies": [
+          "AmazonEKSClusterPolicy"
+        ]
+      },
+      {
+        "id": "role-eksnodes-n24",
+        "name": "eks-nodes-role",
+        "policies": [
+          "AmazonEKSWorkerNodePolicy",
+          "AmazonEKS_CNI_Policy",
+          "AmazonEC2ContainerRegistryReadOnly"
+        ]
+      },
+      {
+        "id": "role-sf-n33",
+        "name": "order-workflow-role",
+        "policies": [
+          "AWSStepFunctionsFullAccess",
+          "AWSLambda_FullAccess"
+        ]
+      }
+    ]
+  }
+}

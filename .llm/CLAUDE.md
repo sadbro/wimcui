@@ -120,4 +120,4 @@ Use **ElastiCache** as the reference implementation — grep for it across all 9
 
 ## Group Examples
 
-9 groups in `public/docs/groups/`: public-web-server, three-tier-app, serverless-api, static-web-app, containerized-api, auth-gated-api, kubernetes-platform, event-driven-fanout, orchestrated-workflow
+10 groups in `public/docs/groups/`: public-web-server, three-tier-app, serverless-api, static-web-app, containerized-api, auth-gated-api, kubernetes-platform, event-driven-fanout, orchestrated-workflow, global-saas-platform (uses all 29 resource types)

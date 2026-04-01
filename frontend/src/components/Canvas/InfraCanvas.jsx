@@ -838,7 +838,10 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
       const importedEdges = state.edges;
       const nodesNeedingSG = remappedNodes.filter((n) => {
         if (!sgCapableTypes.includes(n.data?.resourceType)) return false;
-        const hasSGs = (n.data?.config?.sg_ids || []).length > 0;
+        // If the node uses vpc-select and VPC is not configured, SGs don't apply
+        const cfg = n.data?.config || {};
+        if (cfg.vpc_id !== undefined && (!cfg.vpc_id || cfg.vpc_id === "none")) return false;
+        const hasSGs = (cfg.sg_ids || []).length > 0;
         if (hasSGs) return false;
         const hasTraffic = importedEdges.some(
           (e) => e.type === "traffic" && (e.source === n.id || e.target === n.id)

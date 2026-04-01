@@ -33,7 +33,7 @@ The name is intentional. It answers the question architects ask when staring at 
 * Association edges that model non-traffic relationships: Route Table to Subnet, ACM to ALB/CloudFront, CloudFront to S3/ALB origin, WAF to ALB/CloudFront/API Gateway, SecretsManager to RDS/ECS
 * Per-resource configuration via modal: CIDR validation, AZ selection, engine versions, instance types, LB listener/target group settings, and more
 * Editable display name per resource — shown on the canvas label, independent of the internal config name
-* Reference examples: each resource type has a loadable canvas example (accessible via the `?` button) with working configs, correct SGs, IAM roles, and architecture notes; 9 group examples covering common patterns (see below)
+* Reference examples: each resource type has a loadable canvas example (accessible via the `?` button) with working configs, correct SGs, IAM roles, and architecture notes; 10 group examples covering common patterns (see below)
 
 ### IAM and Security
 
@@ -68,7 +68,7 @@ Every resource type has a documentation page accessible by clicking `?` on any c
 * IAM roles with relevant AWS managed policies
 * A note in the Review panel flagging what to add for production use
 
-Nine group examples are available and loadable from the sidebar resources panel:
+Ten group examples are available and loadable from the sidebar resources panel:
 
 | Group | Summary |
 |---|---|
@@ -81,6 +81,7 @@ Nine group examples are available and loadable from the sidebar resources panel:
 | Kubernetes Platform | EKS cluster + node group with ALB ingress |
 | Event-Driven Fanout | EventBridge → SNS → SQS × 2 → Lambda — isolated async consumers |
 | Orchestrated Workflow | EventBridge → Step Functions → Lambda × 3 → SQS + DynamoDB |
+| **Global SaaS Platform** | All 29 resource types — edge, auth, multi-paradigm compute, multi-store data, events, orchestration |
 
 ### Canvas Views
 

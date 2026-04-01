@@ -56,9 +56,6 @@
             "memory_size": "256",
             "timeout": "10",
             "name": "get-items",
-            "sg_ids": [
-              "sg-n2"
-            ],
             "iam_role_id": "role-lambda-n2"
           }
         }
@@ -78,9 +75,6 @@
             "memory_size": "256",
             "timeout": "10",
             "name": "create-item",
-            "sg_ids": [
-              "sg-n3"
-            ],
             "iam_role_id": "role-lambda-n2"
           }
         }
@@ -135,50 +129,7 @@
       }
     ],
     "version": 2,
-    "securityGroups": [
-      {
-        "id": "sg-n2",
-        "name": "get-items-sg",
-        "description": "Security group for GET /items",
-        "inbound": [
-          {
-            "protocol": "tcp",
-            "port": "443",
-            "cidr": "0.0.0.0/0",
-            "description": "HTTPS"
-          }
-        ],
-        "outbound": [
-          {
-            "protocol": "-1",
-            "port": "0",
-            "cidr": "0.0.0.0/0",
-            "description": "All outbound"
-          }
-        ]
-      },
-      {
-        "id": "sg-n3",
-        "name": "create-item-sg",
-        "description": "Security group for POST /items",
-        "inbound": [
-          {
-            "protocol": "tcp",
-            "port": "443",
-            "cidr": "0.0.0.0/0",
-            "description": "HTTPS"
-          }
-        ],
-        "outbound": [
-          {
-            "protocol": "-1",
-            "port": "0",
-            "cidr": "0.0.0.0/0",
-            "description": "All outbound"
-          }
-        ]
-      }
-    ],
+    "securityGroups": [],
     "roles": [
       {
         "id": "role-lambda-n2",

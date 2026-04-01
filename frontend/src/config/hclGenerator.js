@@ -147,6 +147,11 @@ function innerBlock(name, body, level = 1) {
   return lines.join("\n");
 }
 
+/** Empty block with no body: `name {}` — needed for WAF allow/block action sentinels */
+function emptyBlock(name, level = 1) {
+  return `${indent(level)}${name} {}`;
+}
+
 /** HCL2 map assignment block: `name = { ... }` — used for tags, environment, etc. */
 function mapBlock(name, body, level = 1) {
   const filtered = body.filter(Boolean);
@@ -977,10 +982,8 @@ const generators = {
         cfg.retention_hours && cfg.retention_hours !== "24"
           ? numAttr("retention_period", cfg.retention_hours)
           : null,
-        cfg.encryption === "KMS" ? innerBlock("encryption", [
-          attr("encryption_type", "KMS", 2),
-          attr("key_id", "alias/aws/kinesis", 2),
-        ]) : null,
+        cfg.encryption === "KMS" ? attr("encryption_type", "KMS") : null,
+        cfg.encryption === "KMS" ? attr("kms_key_id", "alias/aws/kinesis") : null,
         "",
         mapBlock("tags", [
           attr("Name", cfg.name || n.data?.label, 2),
@@ -1152,7 +1155,7 @@ const generators = {
         attr("scope", cfg.scope || "REGIONAL"),
         "",
         innerBlock("default_action", [
-          innerBlock(cfg.default_action || "allow", []),
+          emptyBlock(cfg.default_action || "allow", 2),
         ]),
         "",
         ...ruleBlocks,
@@ -1648,9 +1651,11 @@ function generateIAMRoles(ctx, names) {
       ]));
     });
 
-    // Instance profile for EC2
-    const hasEC2 = assignedNodes.some((n) => n.data?.resourceType === "EC2");
-    if (hasEC2) {
+    // Instance profile — required for EC2, ASG (launch template), and EKSNodeGroup
+    const needsInstanceProfile = assignedNodes.some((n) =>
+      ["EC2", "ASG", "EKSNodeGroup"].includes(n.data?.resourceType)
+    );
+    if (needsInstanceProfile) {
       blocks.push(block("aws_iam_instance_profile", name, name, [
         attr("name", `${role.name}-profile`),
         rawAttr("role", `aws_iam_role.${name}.name`),

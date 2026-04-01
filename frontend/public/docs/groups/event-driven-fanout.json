@@ -1,0 +1,141 @@
+{
+  "type": "group",
+  "title": "Event-Driven Fanout",
+  "description": "Decoupled async processing via pub/sub. EventBridge routes domain events to an SNS topic, which fans out to independent SQS queues for each downstream consumer. Lambda processors pull from their dedicated queues. Each consumer is fully isolated — adding a new consumer means adding a queue subscription, with zero changes to producers.",
+  "resources": [
+    "EventBridge",
+    "SNS",
+    "SQS",
+    "Lambda"
+  ],
+  "practices": [
+    "Route through SNS between EventBridge and SQS when you need fan-out to multiple consumers. EventBridge → SQS directly only delivers to one queue.",
+    "Each consumer gets its own SQS queue, not a shared one. Shared queues create hidden coupling — one slow consumer stalls all others.",
+    "Add a Dead Letter Queue (DLQ) to every SQS queue. Without a DLQ, failed messages disappear after maxReceiveCount retries.",
+    "Lambda SQS event source mappings should set batchSize to match your processing capacity. Start at 10 and tune from there.",
+    "SNS message filtering on subscriptions lets you deliver only relevant event subtypes to each queue — reduces Lambda invocations and cost.",
+    "Use FIFO topics and queues only when strict ordering is required — standard delivers higher throughput at lower cost."
+  ],
+  "configNotes": [
+    "EventBridge bus_name identifies the custom event bus. Never use 'default' — AWS reserves that name and Terraform cannot create it. Use a descriptive name like 'order-events'.",
+    "SNS topic fifo should match downstream SQS fifo setting — FIFO topics can only fan out to FIFO queues.",
+    "SQS visibility_timeout should be at least 6x your Lambda timeout to prevent duplicate processing during retries.",
+    "Lambda runtime, handler, memory, and timeout are all required."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": { "x": 400, "y": 0 },
+        "data": {
+          "resourceType": "EventBridge",
+          "label": "Order Events",
+          "config": {
+            "name": "order-events",
+            "bus_name": "order-events"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": { "x": 400, "y": 160 },
+        "data": {
+          "resourceType": "SNS",
+          "label": "Order Topic",
+          "config": {
+            "name": "order-topic",
+            "topic_name": "order-topic",
+            "fifo": "false"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": { "x": 100, "y": 340 },
+        "data": {
+          "resourceType": "SQS",
+          "label": "Email Queue",
+          "config": {
+            "name": "email-queue",
+            "queue_name": "email-queue",
+            "fifo": "false",
+            "visibility_timeout": "180"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": { "x": 700, "y": 340 },
+        "data": {
+          "resourceType": "SQS",
+          "label": "Analytics Queue",
+          "config": {
+            "name": "analytics-queue",
+            "queue_name": "analytics-queue",
+            "fifo": "false",
+            "visibility_timeout": "180"
+          }
+        }
+      },
+      {
+        "id": "n5",
+        "position": { "x": 100, "y": 520 },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "Email Sender",
+          "config": {
+            "name": "email-sender",
+            "runtime": "python3.12",
+            "handler": "index.handler",
+            "memory_size": "256",
+            "timeout": "30",
+            "iam_role_id": "role-lambda-n5"
+          }
+        }
+      },
+      {
+        "id": "n6",
+        "position": { "x": 700, "y": 520 },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "Analytics Writer",
+          "config": {
+            "name": "analytics-writer",
+            "runtime": "python3.12",
+            "handler": "index.handler",
+            "memory_size": "256",
+            "timeout": "30",
+            "iam_role_id": "role-lambda-n6"
+          }
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "type": "association", "source": "n1", "target": "n2" },
+      { "id": "e2", "type": "association", "source": "n2", "target": "n3" },
+      { "id": "e3", "type": "association", "source": "n2", "target": "n4" },
+      { "id": "e4", "type": "traffic",     "source": "n3", "target": "n5" },
+      { "id": "e5", "type": "traffic",     "source": "n4", "target": "n6" }
+    ],
+    "version": 2,
+    "securityGroups": [],
+    "roles": [
+      {
+        "id": "role-lambda-n5",
+        "name": "email-sender-role",
+        "policies": [
+          "AWSLambdaBasicExecutionRole",
+          "AmazonSQSFullAccess"
+        ]
+      },
+      {
+        "id": "role-lambda-n6",
+        "name": "analytics-writer-role",
+        "policies": [
+          "AWSLambdaBasicExecutionRole",
+          "AmazonSQSFullAccess"
+        ]
+      }
+    ]
+  }
+}

@@ -95,7 +95,8 @@
                 "target": "n6"
               }
             ],
-            "name": "main-public-rt"
+            "name": "main-public-rt",
+            "vpcId": "n1"
           }
         }
       },
@@ -115,7 +116,8 @@
                 "target": "n7"
               }
             ],
-            "name": "main-private-rt"
+            "name": "main-private-rt",
+            "vpcId": "n1"
           }
         }
       },

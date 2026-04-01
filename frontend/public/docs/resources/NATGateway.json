@@ -108,7 +108,8 @@
                 "target": "n4"
               }
             ],
-            "name": "app-private-rt"
+            "name": "app-private-rt",
+            "vpcId": "n1"
           }
         }
       },
@@ -143,7 +144,8 @@
                 "target": "n6"
               }
             ],
-            "name": "app-public-rt"
+            "name": "app-public-rt",
+            "vpcId": "n1"
           }
         }
       }

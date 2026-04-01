@@ -106,6 +106,7 @@ YourResource: [
   - `parentTypeMap`: maps this field's value to a resource type filter.
 - `parent-select` — dropdown of canvas nodes of `parentType`; **creates a structural edge on save**. Use for `subnetId`, `vpcId`.
 - `ami-select` — preset dropdown (AWS SSM parameter paths) with a Custom fallback text input. Presets are region-agnostic and resolve to the correct AMI at `terraform apply` time. The `__custom__` sentinel is an internal UI state — the form field always holds the final SSM path or `ami-*` ID. Use `validate` to accept both SSM paths (`value.startsWith("/aws/service/")`) and raw AMI IDs (`/^ami-[a-f0-9]{8,17}$/`).
+- `vpc-select` — dropdown of all VPC nodes currently on the canvas, plus a "No VPC (public)" sentinel. Stores the selected VPC node ID or `"none"`. Use for resources that are optionally deployed inside a VPC (e.g. Lambda). Gates `visibleWhen` on `form.vpc_id && form.vpc_id !== "none"`.
 - `route-list` — specialized route editor. Only for RouteTable.
 - `visibleWhen: (form) => boolean` — conditionally show/hide a field based on other field values.
 
@@ -356,7 +357,7 @@ The `onSkip` callback is context-specific. The import flow shows a "Canvas impor
 Use this checklist before submitting a PR for a new resource:
 
 - [ ] `resourceRegistry.js` — entry with label, color, category, sgCapable, iamCapable; add atomicDrop/atomicDropTarget/dependentOf if applicable
-- [ ] `resourceConfig.js` — field definitions with correct types and validation; use `ami-select` for AMI fields, `dependent-select` with `parentType` for companion `parentNodeId` fields
+- [ ] `resourceConfig.js` — field definitions with correct types and validation; use `ami-select` for AMI fields, `vpc-select` for optional VPC placement fields, `dependent-select` with `parentType` for companion `parentNodeId` fields
 - [ ] `trafficRules.js` — traffic direction rules (or null entry)
 - [ ] `associationRules.js` — only if resource has non-traffic associations
 - [ ] `consequenceRules.js` — at least 2-3 rules covering security, availability, naming

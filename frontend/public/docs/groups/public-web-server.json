@@ -89,7 +89,8 @@
                 "target": "n3"
               }
             ],
-            "name": "public-rt"
+            "name": "public-rt",
+            "vpcId": "n1"
           }
         }
       },

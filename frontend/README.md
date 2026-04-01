@@ -4,7 +4,7 @@ React + Vite application. The frontend is the entire product UI — canvas, side
 
 ## Stack
 
-* React 18 with React Flow for the canvas
+* React 19 with ReactFlow 11 for the canvas
 * Vite for bundling and dev server
 * No UI framework — all styling is inline with CSS variables
 
@@ -51,8 +51,8 @@ src/
 public/
 └── docs/
     ├── index.json                   # Resource and group doc manifest
-    ├── resources/                   # 25 per-resource doc + example JSONs
-    └── groups/                      # 3 group architecture example JSONs
+    ├── resources/                   # 29 per-resource doc + example JSONs
+    └── groups/                      # 9 group architecture example JSONs
 ```
 
 ## Dev

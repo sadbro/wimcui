@@ -166,7 +166,8 @@
                 "target": "n6"
               }
             ],
-            "name": "pub-rt"
+            "name": "pub-rt",
+            "vpcId": "n1"
           }
         }
       },
@@ -186,7 +187,8 @@
                 "target": "n7"
               }
             ],
-            "name": "priv-rt"
+            "name": "priv-rt",
+            "vpcId": "n1"
           }
         }
       },
@@ -260,6 +262,7 @@
             "sg_ids": [
               "sg-n12"
             ],
+            "subnets": ["n4", "n5"],
             "subnetId": "n5"
           }
         }

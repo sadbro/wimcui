@@ -16,14 +16,15 @@ The name is intentional. It answers the question architects ask when staring at 
 
 ### Canvas and Resources
 
-* Drag-and-drop placement of 27 AWS resource types:
+* Drag-and-drop placement of 29 AWS resource types:
   * **Network**: VPC, Subnet, Internet Gateway, NAT Gateway, Route Table
   * **Compute**: EC2, ECS, Lambda, Auto Scaling Group, EKS Cluster, EKS Node Group
   * **Database**: RDS, DynamoDB, ElastiCache
   * **Load Balancing**: Application/Network Load Balancer
   * **Storage**: S3, ECR
   * **Messaging**: SQS, SNS, EventBridge, Kinesis
-  * **Security**: SecretsManager, WAF, ACM, Cognito
+  * **API**: API Gateway
+  * **Security**: Cognito, Secrets Manager, WAF, ACM
   * **Orchestration**: Step Functions
   * **CDN**: CloudFront
   * **DNS**: Route53
@@ -32,7 +33,7 @@ The name is intentional. It answers the question architects ask when staring at 
 * Association edges that model non-traffic relationships: Route Table to Subnet, ACM to ALB/CloudFront, CloudFront to S3/ALB origin, WAF to ALB/CloudFront/API Gateway, SecretsManager to RDS/ECS
 * Per-resource configuration via modal: CIDR validation, AZ selection, engine versions, instance types, LB listener/target group settings, and more
 * Editable display name per resource — shown on the canvas label, independent of the internal config name
-* Reference examples: each resource type has a loadable canvas example (accessible via the `?` button) with working configs, correct SGs, IAM roles, and architecture notes; 3 group examples covering common patterns (public web server, 3-tier app, serverless API)
+* Reference examples: each resource type has a loadable canvas example (accessible via the `?` button) with working configs, correct SGs, IAM roles, and architecture notes; 9 group examples covering common patterns (see below)
 
 ### IAM and Security
 
@@ -67,7 +68,19 @@ Every resource type has a documentation page accessible by clicking `?` on any c
 * IAM roles with relevant AWS managed policies
 * A note in the Review panel flagging what to add for production use
 
-Three group examples are also available (Public Web Server, Classic 3-Tier App, Serverless API) and loadable from the sidebar resources panel.
+Nine group examples are available and loadable from the sidebar resources panel:
+
+| Group | Summary |
+|---|---|
+| Public Web Server | Internet-facing EC2 with VPC, subnet, IGW, and SGs |
+| Classic 3-Tier App | ALB → compute → RDS with public and private subnets |
+| Serverless API | API Gateway → Lambda → DynamoDB with no VPC |
+| Static Web App | Route 53 → CloudFront → S3 with ACM |
+| Containerized API | ECR + ECS Fargate behind ALB with ElastiCache and RDS |
+| Auth-Gated API | Cognito → API Gateway → Lambda → DynamoDB + Secrets Manager |
+| Kubernetes Platform | EKS cluster + node group with ALB ingress |
+| Event-Driven Fanout | EventBridge → SNS → SQS × 2 → Lambda — isolated async consumers |
+| Orchestrated Workflow | EventBridge → Step Functions → Lambda × 3 → SQS + DynamoDB |
 
 ### Canvas Views
 
@@ -78,6 +91,7 @@ Three group examples are also available (Public Web Server, Classic 3-Tier App, 
 
 * Canvas export and import as JSON with versioned schema and forward migration (current schema: v2)
 * Undo and redo with full state restoration including edges and IAM assignments
+* Canvas identifier label — floating bottom-right chip showing the canvas name (doc title when loading a group/resource example, filename when importing a `.json` file); dismissible
 * Dark and light theme
 * Region selector
 

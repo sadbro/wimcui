@@ -151,11 +151,18 @@ export default function ConfigModal({
   if ((resourceType === "ECS" || resourceType === "RDS") && !migratedConfig.subnets && migratedConfig.subnetId) {
     migratedConfig.subnets = [migratedConfig.subnetId];
   }
+  // Migrate Lambda vpc_enabled (old boolean string) → vpc_id (VPC node reference)
+  if (resourceType === "Lambda" && migratedConfig.vpc_id === undefined && migratedConfig.vpc_enabled === "true") {
+    const vpcNodes = canvasNodes.filter((n) => n.data?.resourceType === "VPC");
+    migratedConfig.vpc_id = vpcNodes.length > 0 ? vpcNodes[0].id : "none";
+  }
 
   const buildInitial = () =>
     fields.reduce((acc, f) => {
       if (migratedConfig[f.key] !== undefined) {
         acc[f.key] = migratedConfig[f.key];
+      } else if (f.type === "vpc-select") {
+        acc[f.key] = migratedConfig[f.key] !== undefined ? migratedConfig[f.key] : "none";
       } else if (f.type === "iam-role-select") {
         acc[f.key] = "";
       } else if (f.type === "sg-select") {
@@ -499,6 +506,21 @@ export default function ConfigModal({
                   onChange={(v) => setForm({ ...form, [f.key]: v })}
                   error={!!errors[f.key]}
                 />
+              ) : f.type === "vpc-select" ? (
+                <select
+                  value={form[f.key] || "none"}
+                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  style={inputStyle}
+                >
+                  <option value="none">— No VPC (public) —</option>
+                  {canvasNodes
+                    .filter((n) => n.data?.resourceType === "VPC")
+                    .map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {n.data.label || n.id}
+                      </option>
+                    ))}
+                </select>
               ) : (
                 <input
                   type="text"

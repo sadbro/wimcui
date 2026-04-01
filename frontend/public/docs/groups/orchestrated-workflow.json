@@ -1,0 +1,178 @@
+{
+  "type": "group",
+  "title": "Orchestrated Workflow",
+  "description": "Step Functions coordinates a multi-step business process across Lambda functions, SQS, and DynamoDB. EventBridge triggers the state machine on schedule or domain event. Each step handles retries, error catching, and branching in the state machine definition — keeping Lambda functions focused on single-purpose logic.",
+  "resources": [
+    "EventBridge",
+    "StepFunctions",
+    "Lambda",
+    "SQS",
+    "DynamoDB"
+  ],
+  "practices": [
+    "Use STANDARD type for business-critical workflows (orders, onboarding, payments) — exactly-once execution and full history are worth the cost.",
+    "Use EXPRESS type for high-volume, short-lived workloads under 5 minutes where at-least-once is acceptable.",
+    "Each Lambda in the workflow should be idempotent — Step Functions retries on failure, so duplicate invocations must produce the same result.",
+    "Catch errors at the state machine level (Catch field), not inside Lambda. This keeps Lambda logic pure and puts orchestration decisions in the state machine.",
+    "Add a SQS Dead Letter Queue for failed executions that exhaust all retries — allows inspection and manual replay without code changes.",
+    "Use SDK integrations (optimistic) over Lambda wrappers for simple DynamoDB or SQS calls — removes an unnecessary Lambda invocation."
+  ],
+  "configNotes": [
+    "StepFunctions type must be STANDARD or EXPRESS.",
+    "StepFunctions requires an execution role (iam_role_id) with permissions for every service it invokes.",
+    "Lambda definition (States Language JSON) is generated as a placeholder in HCL — replace with your actual state machine.",
+    "DynamoDB hash_key and billing_mode are required for HCL generation."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": { "x": 400, "y": 0 },
+        "data": {
+          "resourceType": "EventBridge",
+          "label": "Workflow Trigger",
+          "config": {
+            "name": "workflow-trigger",
+            "bus_name": "workflow-events"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": { "x": 400, "y": 160 },
+        "data": {
+          "resourceType": "StepFunctions",
+          "label": "Order Workflow",
+          "config": {
+            "name": "order-workflow",
+            "type": "STANDARD",
+            "logging_level": "ERROR",
+            "tracing_enabled": "true",
+            "iam_role_id": "role-sfn-n2"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": { "x": 0, "y": 360 },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "Validate Order",
+          "config": {
+            "name": "validate-order",
+            "runtime": "python3.12",
+            "handler": "index.handler",
+            "memory_size": "256",
+            "timeout": "30",
+            "iam_role_id": "role-lambda-n3"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": { "x": 400, "y": 360 },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "Process Payment",
+          "config": {
+            "name": "process-payment",
+            "runtime": "python3.12",
+            "handler": "index.handler",
+            "memory_size": "512",
+            "timeout": "60",
+            "iam_role_id": "role-lambda-n4"
+          }
+        }
+      },
+      {
+        "id": "n5",
+        "position": { "x": 800, "y": 360 },
+        "data": {
+          "resourceType": "Lambda",
+          "label": "Send Confirmation",
+          "config": {
+            "name": "send-confirmation",
+            "runtime": "python3.12",
+            "handler": "index.handler",
+            "memory_size": "256",
+            "timeout": "30",
+            "iam_role_id": "role-lambda-n5"
+          }
+        }
+      },
+      {
+        "id": "n6",
+        "position": { "x": 100, "y": 560 },
+        "data": {
+          "resourceType": "SQS",
+          "label": "Failed Orders DLQ",
+          "config": {
+            "name": "failed-orders-dlq",
+            "queue_name": "failed-orders-dlq",
+            "fifo": "false",
+            "visibility_timeout": "300"
+          }
+        }
+      },
+      {
+        "id": "n7",
+        "position": { "x": 500, "y": 560 },
+        "data": {
+          "resourceType": "DynamoDB",
+          "label": "Orders Table",
+          "config": {
+            "name": "orders-table",
+            "table_name": "orders",
+            "billing_mode": "PAY_PER_REQUEST",
+            "hash_key": "orderId",
+            "hash_key_type": "S",
+            "point_in_time_recovery": "true"
+          }
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "type": "association", "source": "n1", "target": "n2" },
+      { "id": "e2", "type": "association", "source": "n2", "target": "n3" },
+      { "id": "e3", "type": "association", "source": "n2", "target": "n4" },
+      { "id": "e4", "type": "association", "source": "n2", "target": "n5" },
+      { "id": "e5", "type": "traffic",     "source": "n4", "target": "n7" },
+      { "id": "e6", "type": "association", "source": "n2", "target": "n6" }
+    ],
+    "version": 2,
+    "securityGroups": [],
+    "roles": [
+      {
+        "id": "role-sfn-n2",
+        "name": "order-workflow-exec-role",
+        "policies": [
+          "AWSLambdaRole",
+          "AmazonSQSFullAccess",
+          "AmazonDynamoDBFullAccess"
+        ]
+      },
+      {
+        "id": "role-lambda-n3",
+        "name": "validate-order-role",
+        "policies": [
+          "AWSLambdaBasicExecutionRole"
+        ]
+      },
+      {
+        "id": "role-lambda-n4",
+        "name": "process-payment-role",
+        "policies": [
+          "AWSLambdaBasicExecutionRole",
+          "AmazonDynamoDBFullAccess"
+        ]
+      },
+      {
+        "id": "role-lambda-n5",
+        "name": "send-confirmation-role",
+        "policies": [
+          "AWSLambdaBasicExecutionRole"
+        ]
+      }
+    ]
+  }
+}

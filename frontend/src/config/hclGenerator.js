@@ -623,8 +623,12 @@ const generators = {
       const name = names[n.id];
       const r = createRefResolver(names, warnings, n.data?.label || name);
       const roleRef = cfg.iam_role_id ? r.ref("aws_iam_role", cfg.iam_role_id, "arn") : null;
-      const sgRefs = r.list("aws_security_group", cfg.sg_ids, "id");
-      const subnetRefs = cfg.subnetId ? r.list("aws_subnet", [cfg.subnetId], "id") : [];
+      // sg_ids and subnet are only meaningful when Lambda is deployed inside a VPC.
+      // vpc_id is the VPC node reference ("none" or absent = public Lambda).
+      // Fall back to legacy vpc_enabled:"true" for old exported canvases.
+      const vpcEnabled = (cfg.vpc_id && cfg.vpc_id !== "none") || cfg.vpc_enabled === "true";
+      const sgRefs     = vpcEnabled ? r.list("aws_security_group", cfg.sg_ids, "id") : [];
+      const subnetRefs = vpcEnabled && cfg.subnetId ? r.list("aws_subnet", [cfg.subnetId], "id") : [];
 
       const envVars = cfg.environment_vars
         ? cfg.environment_vars.split(",").reduce((acc, pair) => {
@@ -643,7 +647,7 @@ const generators = {
         numAttr("timeout", cfg.timeout),
         attr("filename", "lambda.zip"),
         "",
-        cfg.vpc_enabled === "true" ? innerBlock("vpc_config", [
+        vpcEnabled ? innerBlock("vpc_config", [
           subnetRefs.length > 0 ? refListAttr("subnet_ids", subnetRefs, 2) : null,
           sgRefs.length > 0 ? refListAttr("security_group_ids", sgRefs, 2) : null,
         ]) : null,
@@ -793,9 +797,16 @@ const generators = {
           ]),
         ]));
 
-        blocks.push(block("aws_api_gateway_deployment", name, name, [
+        const deployName = `${name}_deployment`;
+        blocks.push(block("aws_api_gateway_deployment", deployName, deployName, [
           rawAttr("rest_api_id", `aws_api_gateway_rest_api.${name}.id`),
-          attr("stage_name", cfg.stage_name),
+          `  lifecycle { create_before_destroy = true }`,
+        ]));
+
+        blocks.push(block("aws_api_gateway_stage", name, name, [
+          rawAttr("rest_api_id", `aws_api_gateway_rest_api.${name}.id`),
+          rawAttr("deployment_id", `aws_api_gateway_deployment.${deployName}.id`),
+          attr("stage_name", cfg.stage_name || "prod"),
         ]));
       } else {
         blocks.push(block("aws_apigatewayv2_api", name, name, [
@@ -1399,6 +1410,8 @@ function generateSecurityGroups(ctx, names) {
   const blocks = [];
   const { securityGroups, nodesWithSG, deriveNodeSGs, nodeById } = ctx;
   if (!securityGroups || securityGroups.length === 0) return blocks;
+  // SGs are only valid inside a VPC — if there are no VPC nodes, skip entirely.
+  if (!ctx.vpcs || ctx.vpcs.length === 0) return blocks;
 
   // Register SG names
   securityGroups.forEach((sg) => {
@@ -1448,55 +1461,126 @@ function generateSecurityGroups(ctx, names) {
       || (assignedNode?.data?.config?.subnets || [])[0];
     const subnet = subnetId ? nodeById(subnetId) : null;
     const vpcId = subnet?.data?.config?.vpcId;
-    const vpcRef = vpcId ? `aws_vpc.${names[vpcId]}.id` : ctx.vpcs?.[0] ? `aws_vpc.${names[ctx.vpcs[0].id]}.id` : '"MISSING_VPC"';
+    const resolvedVpcRef = vpcId ? `aws_vpc.${names[vpcId]}.id`
+      : ctx.vpcs?.[0]   ? `aws_vpc.${names[ctx.vpcs[0].id]}.id`
+      : null;
+    if (!resolvedVpcRef) return; // no VPC in canvas — skip this SG to avoid emitting invalid HCL
+    const vpcRef = resolvedVpcRef;
 
     const rules = sgRules[sg.id] || { inbound: [], outbound: [] };
 
-    const ingressBlocks = rules.inbound.map((r) => {
-      const port = parseInt(r.port, 10);
-      return innerBlock("ingress", [
-        rawAttr("from_port", isNaN(port) ? 0 : port, 2),
-        rawAttr("to_port", isNaN(port) ? 0 : port, 2),
-        attr("protocol", r.protocol || "tcp", 2),
-        `    cidr_blocks = ["${r.cidr || "0.0.0.0/0"}"]`,
-        r.source || r.dest ? `    ${r.source || r.dest}` : null,
-      ]);
-    });
+    // Detect if any rule references another canvas SG — if so, use separate
+    // aws_security_group_rule resources to avoid Terraform dependency cycles.
+    const hasSGRef = [
+      ...rules.inbound.map((r) => names[r.cidr]),
+      ...rules.outbound.map((r) => names[r.cidr]),
+    ].some(Boolean);
 
-    const egressBlocks = rules.outbound.map((r) => {
-      const port = parseInt(r.port, 10);
-      return innerBlock("egress", [
-        rawAttr("from_port", isNaN(port) ? 0 : port, 2),
-        rawAttr("to_port", isNaN(port) ? 0 : port, 2),
-        attr("protocol", r.protocol || "tcp", 2),
-        `    cidr_blocks = ["${r.cidr || "0.0.0.0/0"}"]`,
-        r.dest || r.source ? `    ${r.dest || r.source}` : null,
-      ]);
-    });
+    if (hasSGRef) {
+      // Emit SG resource with no inline rules
+      blocks.push(block("aws_security_group", name, name, [
+        attr("name", sg.name),
+        attr("description", sg.description || `Security group ${sg.name}`),
+        rawAttr("vpc_id", vpcRef),
+        "",
+        mapBlock("tags", [
+          attr("Name", sg.name, 2),
+        ]),
+      ]));
 
-    // Default egress rule — allow all outbound
-    if (egressBlocks.length === 0) {
-      egressBlocks.push(innerBlock("egress", [
-        rawAttr("from_port", 0, 2),
-        rawAttr("to_port", 0, 2),
-        attr("protocol", "-1", 2),
-        `    cidr_blocks = ["0.0.0.0/0"]`,
+      // Emit separate aws_security_group_rule resources — breaks the cycle
+      rules.inbound.forEach((r, i) => {
+        const port = parseInt(r.port, 10);
+        const srcSgName = names[r.cidr];
+        const ruleName = `${name}_ingress_${i}`;
+        blocks.push(block("aws_security_group_rule", ruleName, ruleName, [
+          attr("type", "ingress"),
+          rawAttr("from_port", isNaN(port) ? 0 : port),
+          rawAttr("to_port", isNaN(port) ? 0 : port),
+          attr("protocol", r.protocol || "tcp"),
+          rawAttr("security_group_id", `aws_security_group.${name}.id`),
+          srcSgName
+            ? rawAttr("source_security_group_id", `aws_security_group.${srcSgName}.id`)
+            : `  cidr_blocks = ["${r.cidr || "0.0.0.0/0"}"]`,
+        ]));
+      });
+
+      rules.outbound.forEach((r, i) => {
+        const port = parseInt(r.port, 10);
+        const dstSgName = names[r.cidr];
+        const ruleName = `${name}_egress_${i}`;
+        blocks.push(block("aws_security_group_rule", ruleName, ruleName, [
+          attr("type", "egress"),
+          rawAttr("from_port", isNaN(port) ? 0 : port),
+          rawAttr("to_port", isNaN(port) ? 0 : port),
+          attr("protocol", r.protocol || "tcp"),
+          rawAttr("security_group_id", `aws_security_group.${name}.id`),
+          dstSgName
+            ? rawAttr("source_security_group_id", `aws_security_group.${dstSgName}.id`)
+            : `  cidr_blocks = ["${r.cidr || "0.0.0.0/0"}"]`,
+        ]));
+      });
+
+      // Default egress allow-all when no outbound rules defined
+      if (rules.outbound.length === 0) {
+        const ruleName = `${name}_egress_allow_all`;
+        blocks.push(block("aws_security_group_rule", ruleName, ruleName, [
+          attr("type", "egress"),
+          rawAttr("from_port", 0),
+          rawAttr("to_port", 0),
+          attr("protocol", "-1"),
+          rawAttr("security_group_id", `aws_security_group.${name}.id`),
+          `  cidr_blocks = ["0.0.0.0/0"]`,
+        ]));
+      }
+    } else {
+      // No SG-to-SG references — safe to use inline ingress/egress blocks
+      const ingressBlocks = rules.inbound.map((r) => {
+        const port = parseInt(r.port, 10);
+        return innerBlock("ingress", [
+          rawAttr("from_port", isNaN(port) ? 0 : port, 2),
+          rawAttr("to_port", isNaN(port) ? 0 : port, 2),
+          attr("protocol", r.protocol || "tcp", 2),
+          `    cidr_blocks = ["${r.cidr || "0.0.0.0/0"}"]`,
+          r.source || r.dest ? `    ${r.source || r.dest}` : null,
+        ]);
+      });
+
+      const egressBlocks = rules.outbound.map((r) => {
+        const port = parseInt(r.port, 10);
+        return innerBlock("egress", [
+          rawAttr("from_port", isNaN(port) ? 0 : port, 2),
+          rawAttr("to_port", isNaN(port) ? 0 : port, 2),
+          attr("protocol", r.protocol || "tcp", 2),
+          `    cidr_blocks = ["${r.cidr || "0.0.0.0/0"}"]`,
+          r.dest || r.source ? `    ${r.dest || r.source}` : null,
+        ]);
+      });
+
+      // Default egress rule — allow all outbound
+      if (egressBlocks.length === 0) {
+        egressBlocks.push(innerBlock("egress", [
+          rawAttr("from_port", 0, 2),
+          rawAttr("to_port", 0, 2),
+          attr("protocol", "-1", 2),
+          `    cidr_blocks = ["0.0.0.0/0"]`,
+        ]));
+      }
+
+      blocks.push(block("aws_security_group", name, name, [
+        attr("name", sg.name),
+        attr("description", sg.description || `Security group ${sg.name}`),
+        rawAttr("vpc_id", vpcRef),
+        "",
+        ...ingressBlocks,
+        "",
+        ...egressBlocks,
+        "",
+        mapBlock("tags", [
+          attr("Name", sg.name, 2),
+        ]),
       ]));
     }
-
-    blocks.push(block("aws_security_group", name, name, [
-      attr("name", sg.name),
-      attr("description", sg.description || `Security group ${sg.name}`),
-      rawAttr("vpc_id", vpcRef),
-      "",
-      ...ingressBlocks,
-      "",
-      ...egressBlocks,
-      "",
-      mapBlock("tags", [
-        attr("Name", sg.name, 2),
-      ]),
-    ]));
   });
 
   return blocks;
@@ -1546,15 +1630,22 @@ function generateIAMRoles(ctx, names) {
       ]),
     ]));
 
-    // Attach managed policies
+    // Attach managed policies — supports both string ("PolicyName") and object ({name, arn}) formats
     (role.policies || []).forEach((policy, i) => {
-      const attachName = `${name}_${tfName(policy.name || `policy_${i}`)}`;
-      if (policy.arn) {
-        blocks.push(block("aws_iam_role_policy_attachment", attachName, attachName, [
-          rawAttr("role", `aws_iam_role.${name}.name`),
-          attr("policy_arn", policy.arn),
-        ]));
+      let policyName, policyArn;
+      if (typeof policy === "string") {
+        policyName = policy;
+        policyArn = `arn:aws:iam::aws:policy/${policy}`;
+      } else {
+        policyName = policy.name || `policy_${i}`;
+        policyArn = policy.arn;
       }
+      if (!policyArn) return;
+      const attachName = `${name}_${tfName(policyName)}`;
+      blocks.push(block("aws_iam_role_policy_attachment", attachName, attachName, [
+        rawAttr("role", `aws_iam_role.${name}.name`),
+        attr("policy_arn", policyArn),
+      ]));
     });
 
     // Instance profile for EC2

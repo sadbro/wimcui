@@ -162,7 +162,7 @@ function ResourceDetail({ doc, onLoadExample }) {
       {doc.example && (
         <>
           <button
-            onClick={() => onLoadExample(doc.example)}
+            onClick={() => onLoadExample(doc.example, doc.title || doc.type)}
             style={{
               width: "100%", padding: "10px 0",
               background: "var(--accent)", color: "white",
@@ -223,13 +223,13 @@ export default function DocsModal({ initialType, onClose, onLoadExample }) {
     if (initialType) setSelectedKey(initialType);
   }, [initialType]);
 
-  const handleLoadExample = (example) => {
-    setConfirmLoad(example);
+  const handleLoadExample = (example, label) => {
+    setConfirmLoad({ data: example, label });
   };
 
   const confirmAndLoad = () => {
-    if (confirmLoad && onLoadExample) {
-      onLoadExample(confirmLoad);
+    if (confirmLoad?.data && onLoadExample) {
+      onLoadExample(confirmLoad.data, confirmLoad.label);
       onClose();
     }
     setConfirmLoad(null);

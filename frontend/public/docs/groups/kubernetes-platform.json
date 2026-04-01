@@ -1,0 +1,279 @@
+{
+  "type": "group",
+  "title": "Kubernetes Platform",
+  "description": "Production EKS cluster with managed node groups. The control plane (EKSCluster) spans private subnets across two AZs — a hard EKS requirement. Worker nodes (EKSNodeGroup) run in private subnets and pull traffic via an internet-facing ALB in public subnets. NAT Gateway gives nodes outbound access for image pulls and API calls.",
+  "resources": [
+    "VPC",
+    "Subnet",
+    "IGW",
+    "NATGateway",
+    "RouteTable",
+    "LoadBalancer",
+    "EKSCluster",
+    "EKSNodeGroup"
+  ],
+  "practices": [
+    "EKS control plane requires subnets in at least 2 AZs — this is a hard AWS requirement, not a best practice.",
+    "Place node groups in private subnets. Worker nodes should never be directly internet-facing.",
+    "The ALB handles ingress via the AWS Load Balancer Controller running on the cluster — traffic flows internet → ALB → ingress controller pods → application pods.",
+    "Use separate IAM roles for the cluster and node groups. Cluster role trusts eks.amazonaws.com; node role trusts ec2.amazonaws.com.",
+    "Node group IAM role needs AmazonEKSWorkerNodePolicy, AmazonEKS_CNI_Policy, and AmazonEC2ContainerRegistryReadOnly at minimum.",
+    "Set min_size >= 2 for production to survive node replacement during upgrades. desired_size and max_size should account for peak load."
+  ],
+  "configNotes": [
+    "EKSCluster subnets must reference at least 2 private subnet node IDs in different AZs.",
+    "EKSNodeGroup parentNodeId must reference the EKSCluster node ID — this links them for HCL generation.",
+    "EKSNodeGroup subnets must reference private subnet node IDs.",
+    "ALB subnets must reference public subnet node IDs (2 minimum, different AZs).",
+    "kubernetes_version must be set on EKSCluster — check AWS docs for currently supported versions."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": { "x": 400, "y": 0 },
+        "data": {
+          "resourceType": "VPC",
+          "label": "K8s VPC",
+          "config": {
+            "cidr": "10.0.0.0/16",
+            "name": "k8s-vpc"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": { "x": 100, "y": 160 },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public AZ-A",
+          "config": {
+            "cidr": "10.0.1.0/24",
+            "name": "pub-a",
+            "visibility": "Public",
+            "availability_zone": "us-east-1a",
+            "vpcId": "n1"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": { "x": 500, "y": 160 },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Public AZ-B",
+          "config": {
+            "cidr": "10.0.2.0/24",
+            "name": "pub-b",
+            "visibility": "Public",
+            "availability_zone": "us-east-1b",
+            "vpcId": "n1"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": { "x": 100, "y": 400 },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Private AZ-A",
+          "config": {
+            "cidr": "10.0.10.0/24",
+            "name": "priv-a",
+            "visibility": "Private",
+            "availability_zone": "us-east-1a",
+            "vpcId": "n1"
+          }
+        }
+      },
+      {
+        "id": "n5",
+        "position": { "x": 500, "y": 400 },
+        "data": {
+          "resourceType": "Subnet",
+          "label": "Private AZ-B",
+          "config": {
+            "cidr": "10.0.11.0/24",
+            "name": "priv-b",
+            "visibility": "Private",
+            "availability_zone": "us-east-1b",
+            "vpcId": "n1"
+          }
+        }
+      },
+      {
+        "id": "n6",
+        "position": { "x": 820, "y": 0 },
+        "data": {
+          "resourceType": "IGW",
+          "label": "Internet GW",
+          "config": {
+            "name": "k8s-igw",
+            "vpcId": "n1"
+          }
+        }
+      },
+      {
+        "id": "n7",
+        "position": { "x": 820, "y": 160 },
+        "data": {
+          "resourceType": "NATGateway",
+          "label": "NAT GW",
+          "config": {
+            "name": "k8s-nat",
+            "connectivity_type": "public",
+            "subnetId": "n3"
+          }
+        }
+      },
+      {
+        "id": "n8",
+        "position": { "x": 820, "y": 280 },
+        "data": {
+          "resourceType": "RouteTable",
+          "label": "Public RT",
+          "config": {
+            "name": "pub-rt",
+            "vpcId": "n1",
+            "routes": [{ "destination": "0.0.0.0/0", "target": "n6" }]
+          }
+        }
+      },
+      {
+        "id": "n9",
+        "position": { "x": 820, "y": 400 },
+        "data": {
+          "resourceType": "RouteTable",
+          "label": "Private RT",
+          "config": {
+            "name": "priv-rt",
+            "vpcId": "n1",
+            "routes": [{ "destination": "0.0.0.0/0", "target": "n7" }]
+          }
+        }
+      },
+      {
+        "id": "n10",
+        "position": { "x": 300, "y": 280 },
+        "data": {
+          "resourceType": "LoadBalancer",
+          "label": "Ingress ALB",
+          "config": {
+            "name": "k8s-ingress-alb",
+            "load_balancer_type": "application",
+            "internal": "false",
+            "listener_port": "443",
+            "listener_protocol": "HTTPS",
+            "tg_port": "80",
+            "tg_protocol": "HTTP",
+            "sg_ids": ["sg-n10"],
+            "subnets": ["n2", "n3"]
+          }
+        }
+      },
+      {
+        "id": "n11",
+        "position": { "x": 150, "y": 560 },
+        "data": {
+          "resourceType": "EKSCluster",
+          "label": "Prod Cluster",
+          "config": {
+            "name": "prod-cluster",
+            "kubernetes_version": "1.30",
+            "endpoint_public_access": "true",
+            "endpoint_private_access": "true",
+            "enabled_cluster_log_types": "api,audit",
+            "iam_role_id": "role-eks-n11",
+            "sg_ids": ["sg-n11"],
+            "subnets": ["n4", "n5"]
+          }
+        }
+      },
+      {
+        "id": "n12",
+        "position": { "x": 500, "y": 560 },
+        "data": {
+          "resourceType": "EKSNodeGroup",
+          "label": "App Nodes",
+          "config": {
+            "name": "app-nodes",
+            "parentNodeId": "n11",
+            "instance_type": "t3.medium",
+            "min_size": "2",
+            "max_size": "6",
+            "desired_size": "3",
+            "ami_type": "AL2_x86_64",
+            "iam_role_id": "role-ng-n12",
+            "subnets": ["n4", "n5"]
+          }
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e1",  "type": "structural",  "source": "n1",  "target": "n2",  "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e2",  "type": "structural",  "source": "n1",  "target": "n3",  "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e3",  "type": "structural",  "source": "n1",  "target": "n4",  "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e4",  "type": "structural",  "source": "n1",  "target": "n5",  "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e5",  "type": "structural",  "source": "n1",  "target": "n6",  "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e6",  "type": "structural",  "source": "n3",  "target": "n7",  "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e7",  "type": "structural",  "source": "n2",  "target": "n10", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e8",  "type": "structural",  "source": "n3",  "target": "n10", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e9",  "type": "structural",  "source": "n4",  "target": "n11", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e10", "type": "structural",  "source": "n5",  "target": "n11", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e11", "type": "structural",  "source": "n4",  "target": "n12", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e12", "type": "structural",  "source": "n5",  "target": "n12", "sourceHandle": "bottom", "targetHandle": "top" },
+      { "id": "e13", "type": "association", "source": "n8",  "target": "n2" },
+      { "id": "e14", "type": "association", "source": "n8",  "target": "n3" },
+      { "id": "e15", "type": "association", "source": "n8",  "target": "n6" },
+      { "id": "e16", "type": "association", "source": "n9",  "target": "n4" },
+      { "id": "e17", "type": "association", "source": "n9",  "target": "n5" },
+      { "id": "e18", "type": "association", "source": "n9",  "target": "n7" },
+      { "id": "e19", "type": "association", "source": "n11", "target": "n12" },
+      { "id": "e20", "type": "traffic",     "source": "n10", "target": "n12" }
+    ],
+    "version": 2,
+    "securityGroups": [
+      {
+        "id": "sg-n10",
+        "name": "ingress-alb-sg",
+        "description": "Security group for Ingress ALB",
+        "inbound": [
+          { "protocol": "tcp", "port": "443", "cidr": "0.0.0.0/0", "description": "HTTPS from internet" }
+        ],
+        "outbound": [
+          { "protocol": "tcp", "port": "80", "cidr": "sg-n11", "description": "To EKS nodes" }
+        ]
+      },
+      {
+        "id": "sg-n11",
+        "name": "eks-cluster-sg",
+        "description": "Security group for EKS cluster and nodes",
+        "inbound": [
+          { "protocol": "tcp", "port": "443",  "cidr": "sg-n10", "description": "From Ingress ALB" },
+          { "protocol": "tcp", "port": "10250","cidr": "10.0.0.0/16", "description": "Kubelet from VPC" }
+        ],
+        "outbound": [
+          { "protocol": "-1", "port": "0", "cidr": "0.0.0.0/0", "description": "All outbound" }
+        ]
+      }
+    ],
+    "roles": [
+      {
+        "id": "role-eks-n11",
+        "name": "eks-cluster-role",
+        "policies": [
+          "AmazonEKSClusterPolicy"
+        ]
+      },
+      {
+        "id": "role-ng-n12",
+        "name": "eks-node-group-role",
+        "policies": [
+          "AmazonEKSWorkerNodePolicy",
+          "AmazonEKS_CNI_Policy",
+          "AmazonEC2ContainerRegistryReadOnly"
+        ]
+      }
+    ]
+  }
+}

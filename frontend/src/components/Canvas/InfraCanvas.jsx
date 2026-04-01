@@ -62,6 +62,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
   const [pendingSGPrompt, setPendingSGPrompt] = useState(null); // nodes needing SG auto-create
   const [canvasFilter, setCanvasFilter] = useState("all");
   const [securityOverlay, setSecurityOverlay] = useState(false);
+  const [canvasLabel, setCanvasLabel] = useState(null);
 
   // Undo / Redo history
   const [past,   setPast]   = useState([]);
@@ -698,6 +699,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
     const state = {
       version: CANVAS_VERSION,
       exportedAt: new Date().toISOString(),
+      label: canvasLabel || filename.trim() || null,
       roles: roles || [],
       securityGroups: securityGroups || [],
       region,
@@ -763,7 +765,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
   };
 
   // Core import logic — shared by file import and programmatic load (e.g. docs examples)
-  const loadCanvasJSON = (raw) => {
+  const loadCanvasJSON = (raw, label) => {
     try {
       if (!raw.nodes || !raw.edges) throw new Error("Invalid file structure.");
 
@@ -825,6 +827,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
       if (hadDanglingRole) showToast("Some nodes had references to deleted roles — cleared on import.", true);
       if (hadDanglingSG)   showToast("Some nodes had references to deleted security groups — cleared on import.", true);
 
+      setCanvasLabel(label || state.label || null);
       setNodes(remappedNodes);
       setEdges(state.edges);
 
@@ -860,7 +863,7 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (evt) => {
-      loadCanvasJSON(JSON.parse(evt.target.result));
+      loadCanvasJSON(JSON.parse(evt.target.result), file.name.replace(/\.json$/i, ""));
     };
     reader.readAsText(file);
     e.target.value = "";
@@ -1183,6 +1186,40 @@ function Canvas({ onSelectionChange, editTrigger, selectedNode, onRegisterContro
         </ReactFlow>
       </SecurityOverlayContext.Provider>
       </CanvasFilterContext.Provider>
+
+      {canvasLabel && (
+        <div style={{
+          position: "absolute",
+          bottom: 20,
+          right: (reviewOpen ? reviewPanelWidth : 0) + 20,
+          zIndex: 10,
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          padding: "8px 16px",
+          fontSize: 15,
+          fontWeight: 800,
+          color: "var(--text-primary)",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+          fontFamily: "'JetBrains Mono', Consolas, monospace",
+          letterSpacing: "0.01em",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          userSelect: "none",
+          pointerEvents: "auto",
+          transition: "right 0.2s ease",
+        }}>
+          {canvasLabel}
+          <span
+            onClick={() => setCanvasLabel(null)}
+            style={{ cursor: "pointer", color: "var(--text-muted)", fontSize: 16, lineHeight: 1, fontWeight: 400 }}
+            title="Clear label"
+          >
+            ×
+          </span>
+        </div>
+      )}
 
       {reviewOpen && (
         <ReviewPanel

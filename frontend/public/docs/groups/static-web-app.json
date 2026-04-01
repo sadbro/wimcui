@@ -1,0 +1,94 @@
+{
+  "type": "group",
+  "title": "Static Web App",
+  "description": "CDN-delivered frontend architecture. Route 53 routes traffic to CloudFront, which caches and serves assets from a private S3 bucket. ACM provides SSL/TLS. This pattern serves SPAs, static sites, and media assets globally with sub-10ms latency at the edge — no servers required.",
+  "resources": [
+    "Route53",
+    "ACM",
+    "CloudFront",
+    "S3"
+  ],
+  "practices": [
+    "Keep S3 private — use CloudFront Origin Access Control (OAC) to grant CloudFront-only read access. Never set the bucket ACL to public or enable static website hosting on the bucket itself.",
+    "ACM certificates for CloudFront must be provisioned in us-east-1, regardless of where your application region is.",
+    "Set viewer_protocol_policy to redirect-to-https — never serve content over plain HTTP in production.",
+    "Use long TTLs for static assets (images, JS, CSS) and short TTLs for HTML entry points. Content-hash your asset filenames so cache invalidation is cheap.",
+    "Route 53 ALIAS records are required for apex domains (example.com). CNAME only works for subdomains (www.example.com).",
+    "CloudFront distributions take 10-20 minutes to deploy globally — factor this into your CI/CD pipeline."
+  ],
+  "configNotes": [
+    "CloudFront origin_id must reference the S3 node ID.",
+    "CloudFront acm_certificate_id must reference the ACM node ID.",
+    "S3 block_public_access should be true — access is through CloudFront only.",
+    "Route 53 hosted_zone_name should match your ACM domain_name."
+  ],
+  "example": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": { "x": 400, "y": 0 },
+        "data": {
+          "resourceType": "Route53",
+          "label": "App DNS",
+          "config": {
+            "name": "app-dns",
+            "hosted_zone_name": "example.com",
+            "zone_type": "public"
+          }
+        }
+      },
+      {
+        "id": "n2",
+        "position": { "x": 100, "y": 180 },
+        "data": {
+          "resourceType": "ACM",
+          "label": "SSL Cert",
+          "config": {
+            "name": "app-cert",
+            "domain_name": "www.example.com",
+            "validation_method": "DNS"
+          }
+        }
+      },
+      {
+        "id": "n3",
+        "position": { "x": 400, "y": 360 },
+        "data": {
+          "resourceType": "CloudFront",
+          "label": "CDN",
+          "config": {
+            "name": "app-cdn",
+            "price_class": "PriceClass_100",
+            "viewer_protocol_policy": "redirect-to-https",
+            "origin_type": "S3",
+            "origin_id": "n4",
+            "acm_certificate_id": "n2"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "position": { "x": 400, "y": 540 },
+        "data": {
+          "resourceType": "S3",
+          "label": "Frontend Assets",
+          "config": {
+            "name": "frontend-assets",
+            "bucket_name": "my-app-frontend-assets",
+            "versioning": "Enabled",
+            "encryption": "SSE-S3 (AES-256)",
+            "block_public_access": "true"
+          }
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "type": "association", "source": "n1", "target": "n3" },
+      { "id": "e2", "type": "association", "source": "n2", "target": "n3" },
+      { "id": "e3", "type": "association", "source": "n3", "target": "n4" }
+    ],
+    "version": 2,
+    "securityGroups": [],
+    "roles": []
+  }
+}
